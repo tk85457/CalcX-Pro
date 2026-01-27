@@ -1,0 +1,16 @@
+﻿Analyzing CalcXpro...                                           
+
+warning - The declaration '_safeSetCursor' isn't referenced - lib\providers\calculator_provider.dart:140:8 - unused_element
+   info - Statements in an if should be enclosed in a block - lib\providers\calculator_provider.dart:141:18 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\calculator_provider.dart:142:33 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\calculator_provider.dart:143:10 - curly_braces_in_flow_control_structures
+   info - Use interpolation to compose strings and values - lib\providers\calculator_provider.dart:370:30 - prefer_interpolation_to_compose_strings
+   info - Use interpolation to compose strings and values - lib\providers\calculator_provider.dart:370:81 - prefer_interpolation_to_compose_strings
+   info - Statements in an if should be enclosed in a block - lib\providers\calculator_provider.dart:503:44 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\calculator_provider.dart:504:56 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\providers\calculator_provider.dart:505:64 - curly_braces_in_flow_control_structures
+warning - The value of the local variable 'currentExpression' isn't used - lib\providers\calculator_provider.dart:630:13 - unused_local_variable
+   info - Statements in a for should be enclosed in a block - lib\providers\calculator_provider.dart:666:49 - curly_braces_in_flow_control_structures
+warning - The diagnostic 'deprecated_member_use' doesn't need to be ignored here because it's already being ignored - lib\utils\calculator_utils.dart:15:51 - duplicate_ignore
+warning - The diagnostic 'deprecated_member_use' doesn't need to be ignored here because it's already being ignored - lib\utils\calculator_utils.dart:90:53 - duplicate_ignore
+

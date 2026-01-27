@@ -1,0 +1,35 @@
+{
+    "name": "CalcX Pro",
+    "short_name": "CalcX Pro",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#0175C2",
+    "theme_color": "#0175C2",
+    "description": "CalcX Pro - A premium calculator app with basic, scientific, and advanced calculators.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "web\\icons\\original-6d3e00888addab296df1df05401075ab.jpg",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "web\\icons\\original-6d3e00888addab296df1df05401075ab.jpg",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "web\\icons\\original-6d3e00888addab296df1df05401075ab.jpg",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "web\\icons\\original-6d3e00888addab296df1df05401075ab.jpg",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}
