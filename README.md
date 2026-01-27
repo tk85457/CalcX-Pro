@@ -1,6 +1,17 @@
 # CalcX Pro - All-in-One Calculator Suite
 
+[![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
+[![Dart](https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
+[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Web-green?style=for-the-badge)](https://github.com/tk85457/CalcX-Pro-a-dvanced-calculator-app)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+
 ![CalcX Pro Banner](https://raw.githubusercontent.com/tk85457/CalcX-Pro-a-dvanced-calculator-app/main/assets/readme_banner.png)
+
+## 📥 Download & Install
+
+| Android APK | Play Store |
+| :--- | :--- |
+| [**Download v1.0.0 APK**](https://github.com/tk85457/CalcX-Pro-a-dvanced-calculator-app/releases/latest) | *Coming Soon* |
 
 **Unlock the Power of Precision with CalcX Pro – Your Ultimate All-in-One Calculation Suite!**
 
