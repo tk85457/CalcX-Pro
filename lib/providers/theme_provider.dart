@@ -22,23 +22,52 @@ class ThemeProvider with ChangeNotifier {
   ThemeProvider() {
     // Default to first theme (Ocean Blue Light)
     _appTheme = AppConstants.predefinedThemes[0];
+    // Init eagerly — box is already opened in main() before runApp
+    _initFromOpenBox();
   }
 
+  /// Called in constructor — reads from the already-open Hive box.
+  /// No async delay means zero theme flash on startup.
+  void _initFromOpenBox() {
+    if (_isInitialized) return;
+    try {
+      if (Hive.isBoxOpen(_themeBox)) {
+        final box = Hive.box(_themeBox);
+        final themeIndex = box.get(_themeIndexKey, defaultValue: 0) as int;
+        _selectedThemeIndex =
+            (themeIndex >= 0 && themeIndex < AppConstants.predefinedThemes.length)
+                ? themeIndex
+                : 0;
+        _appTheme = AppConstants.predefinedThemes[_selectedThemeIndex];
+        _isInitialized = true;
+        // No notifyListeners needed — widget tree not built yet
+      }
+    } catch (_) {
+      // Safe default already set in constructor
+    }
+  }
+
+  /// Public init — kept for backward compatibility (called from main.dart).
+  /// Now a no-op if already initialized from constructor.
   Future<void> init() async {
-    if (_isInitialized) return; // Prevent multiple initializations
+    if (_isInitialized) return;
 
-    final box = await Hive.openBox(_themeBox);
-    final themeIndex = box.get(_themeIndexKey, defaultValue: 0);
+    try {
+      final box = Hive.isBoxOpen(_themeBox)
+          ? Hive.box(_themeBox)
+          : await Hive.openBox(_themeBox);
 
-    // Ensure theme index is valid
-    _selectedThemeIndex =
-        (themeIndex >= 0 && themeIndex < AppConstants.predefinedThemes.length)
-            ? themeIndex
-            : 0;
-
-    _appTheme = AppConstants.predefinedThemes[_selectedThemeIndex];
-    _isInitialized = true;
-    notifyListeners();
+      final themeIndex = box.get(_themeIndexKey, defaultValue: 0) as int;
+      _selectedThemeIndex =
+          (themeIndex >= 0 && themeIndex < AppConstants.predefinedThemes.length)
+              ? themeIndex
+              : 0;
+      _appTheme = AppConstants.predefinedThemes[_selectedThemeIndex];
+      _isInitialized = true;
+      notifyListeners();
+    } catch (_) {
+      _isInitialized = true; // Mark done even on error — use defaults
+    }
   }
 
   Future<void> setTheme(int index) async {
@@ -46,22 +75,24 @@ class ThemeProvider with ChangeNotifier {
 
     _selectedThemeIndex = index;
     _appTheme = AppConstants.predefinedThemes[index];
-
-    final box = await Hive.openBox(_themeBox);
-    await box.put(_themeIndexKey, index);
     notifyListeners();
+
+    try {
+      final box = Hive.isBoxOpen(_themeBox)
+          ? Hive.box(_themeBox)
+          : await Hive.openBox(_themeBox);
+      await box.put(_themeIndexKey, index);
+    } catch (_) {}
   }
 
   // Legacy methods for backward compatibility
   Future<void> toggleTheme() async {
-    // Toggle between light and dark versions of current theme
     final currentThemeName =
         _appTheme.name.replaceAll(' Dark', '').replaceAll(' Light', '');
     final isCurrentlyDark = _appTheme.isDark;
     final targetThemeName =
         isCurrentlyDark ? currentThemeName : '$currentThemeName Dark';
 
-    // Find the target theme
     final targetIndex = AppConstants.predefinedThemes
         .indexWhere((theme) => theme.name == targetThemeName);
 
@@ -71,7 +102,6 @@ class ThemeProvider with ChangeNotifier {
   }
 
   Future<void> setPrimaryColor(Color color) async {
-    // For backward compatibility, find a theme with similar primary color
     final closestThemeIndex = AppConstants.predefinedThemes
         .indexWhere((theme) => Color(theme.primaryColor) == color);
 

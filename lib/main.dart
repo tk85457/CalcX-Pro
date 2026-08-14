@@ -1,4 +1,4 @@
-import 'dart:math';
+﻿import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -12,31 +12,12 @@ import 'providers/settings_provider.dart';
 import 'screens/home_screen.dart';
 import 'utils/constants.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize Hive
-  await Hive.initFlutter();
-  Hive.registerAdapter(HistoryEntryAdapter());
-
-  // Open boxes
-  await Hive.openBox<HistoryEntry>(AppConstants.historyBox);
-  await Hive.openBox(AppConstants.themeBox);
-
-  // Set preferred orientations
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-
-  // Set system UI overlay style
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ),
-  );
-
+  // Parallel init: Hive + SystemUI
+  // Hive boxes are opened BEFORE runApp so ThemeProvider can read them
+  // synchronously in its constructor — no theme flash.
+  await Future.wait([_initHive(), _initSystemUI()]);
   runApp(
     MultiProvider(
       providers: [
@@ -50,9 +31,33 @@ void main() async {
   );
 }
 
+Future<void> _initHive() async {
+  await Hive.initFlutter();
+  Hive.registerAdapter(HistoryEntryAdapter());
+  // Open all boxes upfront — providers read them synchronously after this
+  await Future.wait([
+    Hive.openBox<HistoryEntry>(AppConstants.historyBox),
+    Hive.openBox(AppConstants.themeBox),
+    Hive.openBox('settings'), // SettingsProvider box
+  ]);
+}
+
+Future<void> _initSystemUI() async {
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+    ),
+  );
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+}
+
 class CalculatorProApp extends StatefulWidget {
   const CalculatorProApp({super.key});
-
   @override
   State<CalculatorProApp> createState() => _CalculatorProAppState();
 }
@@ -61,12 +66,13 @@ class _CalculatorProAppState extends State<CalculatorProApp> {
   @override
   void initState() {
     super.initState();
-    // Initialize providers after Hive boxes are open
+    // Only wire up the history provider — theme is already loaded synchronously
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ThemeProvider>().init();
-      context
-          .read<CalculatorProvider>()
-          .setHistoryProvider(context.read<HistoryProvider>());
+      if (mounted) {
+        context.read<CalculatorProvider>().setHistoryProvider(
+              context.read<HistoryProvider>(),
+            );
+      }
     });
   }
 
@@ -88,378 +94,144 @@ class _CalculatorProAppState extends State<CalculatorProApp> {
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
-
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
-    with TickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
   late AnimationController _mainController;
-  late AnimationController _particleController;
   late AnimationController _glowController;
   late AnimationController _textController;
-
+  late AnimationController _particleController;
   late Animation<double> _scaleAnimation;
-  late Animation<double> _rotateAnimation;
   late Animation<double> _fadeAnimation;
   late Animation<double> _textSlideAnimation;
   late Animation<double> _textFadeAnimation;
-
+  late Animation<double> _glowAnimation;
   late List<_SplashParticle> _particles;
   final Random _random = Random();
 
   @override
   void initState() {
     super.initState();
-    _initializeParticles();
-    _initializeAnimations();
-    _startAnimationSequence();
-  }
-
-  void _initializeParticles() {
-    _particles = List.generate(30, (index) {
-      return _SplashParticle(
-        x: _random.nextDouble(),
-        y: _random.nextDouble(),
-        size: _random.nextDouble() * 4 + 2,
-        speedY: _random.nextDouble() * 0.3 + 0.1,
-        opacity: _random.nextDouble() * 0.5 + 0.3,
-      );
-    });
-  }
-
-  void _initializeAnimations() {
-    // Main controller for icon animations
-    _mainController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    );
-
-    // Particle animation controller
-    _particleController = AnimationController(
-      duration: const Duration(seconds: 4),
-      vsync: this,
-    )..repeat();
-
-    // Glow animation controller
-    _glowController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
-      vsync: this,
-    )..repeat(reverse: true);
-
-    // Text animation controller
-    _textController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    // Scale animation - starts small, grows with overshoot
+    _particles = List.generate(12, (_) => _SplashParticle(
+      x: _random.nextDouble(), y: _random.nextDouble(),
+      size: _random.nextDouble() * 3 + 1.5,
+      speedY: _random.nextDouble() * 0.2 + 0.08,
+      opacity: _random.nextDouble() * 0.4 + 0.2,
+    ));
+    _mainController = AnimationController(duration: const Duration(milliseconds: 900), vsync: this);
+    _glowController = AnimationController(duration: const Duration(milliseconds: 1000), vsync: this)..repeat(reverse: true);
+    _textController = AnimationController(duration: const Duration(milliseconds: 600), vsync: this);
+    _particleController = AnimationController(duration: const Duration(seconds: 3), vsync: this)..repeat();
     _scaleAnimation = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 0.0, end: 1.15)
-            .chain(CurveTween(curve: Curves.easeOutCubic)),
-        weight: 60,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1.15, end: 1.0)
-            .chain(CurveTween(curve: Curves.elasticOut)),
-        weight: 40,
-      ),
+      TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 1.12).chain(CurveTween(curve: Curves.easeOutCubic)), weight: 65),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.12, end: 1.0).chain(CurveTween(curve: Curves.easeInOut)), weight: 35),
     ]).animate(_mainController);
-
-    // Rotation animation - subtle rotation effect
-    _rotateAnimation = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(begin: -0.1, end: 0.05)
-            .chain(CurveTween(curve: Curves.easeOutCubic)),
-        weight: 50,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 0.05, end: 0.0)
-            .chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 50,
-      ),
-    ]).animate(_mainController);
-
-    // Fade animation
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _mainController,
-        curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
-      ),
-    );
-
-    // Text slide animation
-    _textSlideAnimation = Tween<double>(begin: 30.0, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _textController,
-        curve: Curves.easeOutCubic,
-      ),
-    );
-
-    // Text fade animation
-    _textFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _textController,
-        curve: Curves.easeOut,
-      ),
-    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _mainController, curve: const Interval(0.0, 0.4, curve: Curves.easeOut)));
+    _glowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_glowController);
+    _textSlideAnimation = Tween<double>(begin: 24.0, end: 0.0).animate(CurvedAnimation(parent: _textController, curve: Curves.easeOutCubic));
+    _textFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _textController, curve: Curves.easeOut));
+    _startSequence();
   }
 
-  void _startAnimationSequence() async {
-    // Start main animation
-    await Future.delayed(const Duration(milliseconds: 200));
+  void _startSequence() async {
+    await Future.delayed(const Duration(milliseconds: 120));
+    if (!mounted) return;
     _mainController.forward();
-
-    // Start text animation after icon appears
-    await Future.delayed(const Duration(milliseconds: 800));
+    await Future.delayed(const Duration(milliseconds: 550));
+    if (!mounted) return;
     _textController.forward();
-
-    // Navigate to home screen after animations
-    await Future.delayed(const Duration(seconds: 2));
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => const HomeScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(
-                scale: Tween<double>(begin: 0.95, end: 1.0).animate(
-                  CurvedAnimation(parent: animation, curve: Curves.easeOut),
-                ),
-                child: child,
-              ),
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 500),
+    await Future.delayed(const Duration(milliseconds: 750));
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(PageRouteBuilder(
+      pageBuilder: (_, __, ___) => const HomeScreen(),
+      transitionsBuilder: (_, a, __, child) => FadeTransition(
+        opacity: a,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.97, end: 1.0).animate(CurvedAnimation(parent: a, curve: Curves.easeOut)),
+          child: child,
         ),
-      );
-    }
+      ),
+      transitionDuration: const Duration(milliseconds: 320),
+    ));
   }
 
   @override
   void dispose() {
-    _mainController.dispose();
-    _particleController.dispose();
-    _glowController.dispose();
-    _textController.dispose();
+    _mainController.dispose(); _glowController.dispose();
+    _textController.dispose(); _particleController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    final secondaryColor = Theme.of(context).colorScheme.secondary;
-
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       body: AnimatedBuilder(
-        animation: Listenable.merge([
-          _mainController,
-          _particleController,
-          _glowController,
-          _textController,
-        ]),
-        builder: (context, child) {
+        animation: Listenable.merge([_mainController, _glowController, _textController, _particleController]),
+        builder: (context, _) {
           return Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment(
-                  -1 + _particleController.value * 0.3,
-                  -1 + _particleController.value * 0.3,
-                ),
-                end: Alignment(
-                  1 - _particleController.value * 0.3,
-                  1 - _particleController.value * 0.3,
-                ),
-                colors: [
-                  primaryColor,
-                  Color.lerp(primaryColor, secondaryColor, 0.5)!,
-                  secondaryColor,
-                ],
-                stops: const [0.0, 0.5, 1.0],
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+                colors: [cs.primary, Color.lerp(cs.primary, cs.secondary, 0.6)!, cs.secondary],
               ),
             ),
-            child: Stack(
-              children: [
-                // Floating particles
-                CustomPaint(
-                  painter: _SplashParticlesPainter(
-                    particles: _particles,
-                    animationValue: _particleController.value,
-                  ),
-                  size: Size.infinite,
-                ),
-                // Main content
-                Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Animated icon with glow
-                      Transform.scale(
-                        scale: _scaleAnimation.value,
-                        child: Transform.rotate(
-                          angle: _rotateAnimation.value,
-                          child: Opacity(
-                            opacity: _fadeAnimation.value,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(28),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.white.withValues(
-                                      alpha: 0.3 + _glowController.value * 0.2
-                                    ),
-                                    blurRadius: 20 + _glowController.value * 15,
-                                    spreadRadius: 5 + _glowController.value * 5,
-                                  ),
-                                  BoxShadow(
-                                    color: primaryColor.withValues(
-                                      alpha: 0.4 + _glowController.value * 0.3
-                                    ),
-                                    blurRadius: 40 + _glowController.value * 20,
-                                    spreadRadius: 10 + _glowController.value * 10,
-                                  ),
-                                ],
-                              ),
-                              child: Container(
-                                width: 140,
-                                height: 140,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(28),
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.4),
-                                    width: 2,
-                                  ),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(26),
-                                  child: Image.asset(
-                                    'assets/images/icon/app_icon.png',
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            begin: Alignment.topLeft,
-                                            end: Alignment.bottomRight,
-                                            colors: [
-                                              Colors.white.withValues(alpha: 0.3),
-                                              Colors.white.withValues(alpha: 0.1),
-                                            ],
-                                          ),
-                                        ),
-                                        child: const Icon(
-                                          Icons.calculate_rounded,
-                                          size: 80,
-                                          color: Colors.white,
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+            child: Stack(children: [
+              RepaintBoundary(child: CustomPaint(
+                painter: _SplashParticlesPainter(particles: _particles, animationValue: _particleController.value),
+                size: Size.infinite,
+              )),
+              Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Transform.scale(scale: _scaleAnimation.value, child: Opacity(opacity: _fadeAnimation.value,
+                  child: Container(
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(28), boxShadow: [
+                      BoxShadow(color: Colors.white.withValues(alpha: 0.2 + _glowAnimation.value * 0.15),
+                        blurRadius: 18 + _glowAnimation.value * 12, spreadRadius: 4 + _glowAnimation.value * 4),
+                    ]),
+                    child: Container(width: 130, height: 130,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.5),
                       ),
-                      const SizedBox(height: 40),
-                      // Animated app name
-                      Transform.translate(
-                        offset: Offset(0, _textSlideAnimation.value),
-                        child: Opacity(
-                          opacity: _textFadeAnimation.value,
-                          child: ShaderMask(
-                            shaderCallback: (bounds) => LinearGradient(
-                              colors: [
-                                Colors.white,
-                                Colors.white.withValues(alpha: 0.9),
-                              ],
-                            ).createShader(bounds),
-                            child: const Text(
-                              AppConstants.appName,
-                              style: TextStyle(
-                                fontSize: 38,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                letterSpacing: 2,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black26,
-                                    offset: Offset(2, 2),
-                                    blurRadius: 4,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
+                      child: ClipRRect(borderRadius: BorderRadius.circular(26),
+                        child: Image.asset('assets/images/icon/app_icon.png', fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.calculate_rounded, size: 80, color: Colors.white)),
                       ),
-                      const SizedBox(height: 12),
-                      // Animated tagline
-                      Transform.translate(
-                        offset: Offset(0, _textSlideAnimation.value * 1.5),
-                        child: Opacity(
-                          opacity: _textFadeAnimation.value * 0.8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                            ),
-                            child: const Text(
-                              '✨ Premium Calculator Experience',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Loading indicator at bottom
-                Positioned(
-                  bottom: 60,
-                  left: 0,
-                  right: 0,
-                  child: Opacity(
-                    opacity: _textFadeAnimation.value,
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          width: 120,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: _mainController.value,
-                              backgroundColor: Colors.white.withValues(alpha: 0.2),
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                              minHeight: 4,
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
                   ),
-                ),
-              ],
-            ),
+                )),
+                const SizedBox(height: 36),
+                Transform.translate(offset: Offset(0, _textSlideAnimation.value), child: Opacity(opacity: _textFadeAnimation.value,
+                  child: const Text(AppConstants.appName, style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.5)),
+                )),
+                const SizedBox(height: 10),
+                Transform.translate(offset: Offset(0, _textSlideAnimation.value * 1.3), child: Opacity(opacity: _textFadeAnimation.value * 0.85,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                    ),
+                    child: const Text('\u2728 Premium Calculator Experience',
+                      style: TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500)),
+                  ),
+                )),
+              ])),
+              Positioned(bottom: 56, left: 0, right: 0, child: Opacity(opacity: _textFadeAnimation.value,
+                child: Center(child: SizedBox(width: 100, child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: _mainController.value,
+                    backgroundColor: Colors.white.withValues(alpha: 0.2),
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                    minHeight: 3,
+                  ),
+                ))),
+              )),
+            ]),
           );
         },
       ),
@@ -467,55 +239,27 @@ class _SplashScreenState extends State<SplashScreen>
   }
 }
 
-// Particle class for splash screen
 class _SplashParticle {
-  final double x;
-  final double y;
-  final double size;
-  final double speedY;
-  final double opacity;
-
-  _SplashParticle({
-    required this.x,
-    required this.y,
-    required this.size,
-    required this.speedY,
-    required this.opacity,
-  });
+  final double x, y, size, speedY, opacity;
+  const _SplashParticle({required this.x, required this.y, required this.size, required this.speedY, required this.opacity});
 }
 
-// Particles painter for splash screen
 class _SplashParticlesPainter extends CustomPainter {
   final List<_SplashParticle> particles;
   final double animationValue;
-
-  _SplashParticlesPainter({
-    required this.particles,
-    required this.animationValue,
-  });
-
+  const _SplashParticlesPainter({required this.particles, required this.animationValue});
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..style = PaintingStyle.fill;
-
-    for (var particle in particles) {
-      final y = ((particle.y + animationValue * particle.speedY) % 1.0) * size.height;
-      final x = (particle.x + sin(animationValue * 3.14 * 2 + particle.y * 10) * 0.02) * size.width;
-
-      final pulseOpacity = particle.opacity * (0.5 + 0.5 * sin(animationValue * 3.14 * 4 + particle.x * 10));
-      paint.color = Colors.white.withValues(alpha: pulseOpacity);
-
-      canvas.drawCircle(
-        Offset(x, y),
-        particle.size,
-        paint,
-      );
+    for (final p in particles) {
+      final y = ((p.y + animationValue * p.speedY) % 1.0) * size.height;
+      final x = (p.x + sin(animationValue * pi * 2 + p.y * 8) * 0.015) * size.width;
+      final pulse = p.opacity * (0.6 + 0.4 * sin(animationValue * pi * 3 + p.x * 8));
+      paint.color = Colors.white.withValues(alpha: pulse);
+      canvas.drawCircle(Offset(x, y), p.size, paint);
     }
   }
-
   @override
-  bool shouldRepaint(covariant _SplashParticlesPainter oldDelegate) {
-    return oldDelegate.animationValue != animationValue;
-  }
+  bool shouldRepaint(covariant _SplashParticlesPainter old) => old.animationValue != animationValue;
 }
 

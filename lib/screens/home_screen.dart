@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/calculator_provider.dart';
 import '../providers/theme_provider.dart';
@@ -23,36 +25,67 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   bool _isUserTabChange = false;
+  Timer? _navBarHideTimer;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(
-      length: 3,
-      vsync: this,
-    ); // Reduced from 5 to 3 tabs
+    WidgetsBinding.instance.addObserver(this);
 
-    // Add listener to clear content when sliding starts
+    _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_onTabChanged);
+
+    // Hide nav bar immediately when screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _hideNavBar();
+    });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _navBarHideTimer?.cancel();
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
   }
 
+  // Re-hide nav bar when app comes back to foreground
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _hideNavBar();
+    }
+  }
+
+  // Called when system UI visibility changes (user swipes nav bar out)
+  @override
+  void didChangeMetrics() {
+    // Start 1-second timer to re-hide nav bar after user reveals it
+    _scheduleNavBarHide();
+  }
+
+  void _hideNavBar() {
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.immersiveSticky,
+    );
+  }
+
+  void _scheduleNavBarHide() {
+    _navBarHideTimer?.cancel();
+    _navBarHideTimer = Timer(const Duration(milliseconds: 1000), () {
+      if (mounted) _hideNavBar();
+    });
+  }
+
   void _onTabChanged() {
-    // Only clear calculator content when user manually taps on tabs (not during swipe)
     if (!_tabController.indexIsChanging && _isUserTabChange) {
-      // Get the calculator provider and clear the current mode
       final calculator = context.read<CalculatorProvider>();
       calculator.clear();
-      _isUserTabChange = false; // Reset the flag after clearing
+      _isUserTabChange = false;
     }
   }
 
@@ -60,7 +93,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Consumer<CalculatorProvider>(
       builder: (context, calculator, child) {
-        // Update tab index when calculator type changes
         int tabIndex = 0;
         switch (calculator.currentCalculatorType) {
           case 'basic':
@@ -72,138 +104,135 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           case 'advanced':
             tabIndex = 2;
             break;
-          // Removed converter and currency cases
         }
 
-        // Update the tab controller index if it's different
-        // Use addPostFrameCallback to avoid setState during build
         if (_tabController.index != tabIndex) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (_tabController.index != tabIndex) {
-              _isUserTabChange = false; // Programmatic change, don't clear
+              _isUserTabChange = false;
               _tabController.index = tabIndex;
             }
           });
         }
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('CalcX Pro'),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-            leading: calculator.currentCalculatorType != 'basic'
-                ? IconButton(
-                    icon: Icon(
-                      Icons.arrow_back,
-                      color: Theme.of(context).colorScheme.onPrimary,
-                    ),
-                    style: IconButton.styleFrom(
-                      backgroundColor: Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: 0.1),
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                    ),
-                    onPressed: () =>
-                        calculator.setCalculatorTypeAndClear('basic'),
-                  )
-                : Builder(
-                    builder: (context) => IconButton(
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness:
+                Theme.of(context).brightness == Brightness.dark
+                    ? Brightness.light
+                    : Brightness.dark,
+            systemNavigationBarColor: Colors.transparent,
+            systemNavigationBarDividerColor: Colors.transparent,
+          ),
+          child: Scaffold(
+            appBar: AppBar(
+              title: const Text('CalcX Pro'),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              leading: (calculator.currentCalculatorType != 'basic' &&
+                      calculator.currentCalculatorType != 'scientific' &&
+                      calculator.currentCalculatorType != 'advanced')
+                  ? IconButton(
                       icon: Icon(
-                        Icons.menu,
+                        Icons.arrow_back,
                         color: Theme.of(context).colorScheme.onPrimary,
                       ),
-                      style: IconButton.styleFrom(
-                        backgroundColor: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: 0.1),
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onPrimary,
+                      onPressed: () =>
+                          calculator.setCalculatorTypeAndClear('basic'),
+                    )
+                  : Builder(
+                      builder: (context) => IconButton(
+                        icon: Icon(
+                          Icons.menu,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                        onPressed: () => Scaffold.of(context).openDrawer(),
                       ),
-                      onPressed: () => Scaffold.of(context).openDrawer(),
                     ),
-                  ),
-            actions: [
-              if (calculator.currentCalculatorType != 'advanced')
-                Builder(
-                  builder: (context) => IconButton(
-                    icon: Icon(
-                      Icons.history,
-                      color: Theme.of(context).colorScheme.onPrimary,
-                    ),
-                    onPressed: () => Scaffold.of(context).openEndDrawer(),
-                  ),
-                ),
-              Consumer<ThemeProvider>(
-                builder: (context, themeProvider, child) {
-                  // Always use high contrast color for theme toggle button
-                  final onPrimaryColor =
-                      Theme.of(context).colorScheme.onPrimary;
-
-                  return Container(
-                    margin: const EdgeInsets.only(right: 4),
-                    decoration: BoxDecoration(
-                      color: onPrimaryColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: IconButton(
+              actions: [
+                if (calculator.currentCalculatorType != 'advanced')
+                  Builder(
+                    builder: (context) => IconButton(
                       icon: Icon(
-                        themeProvider.isDark
-                            ? Icons.light_mode_outlined
-                            : Icons.dark_mode_outlined,
-                        color: onPrimaryColor,
+                        Icons.history,
+                        color: Theme.of(context).colorScheme.onPrimary,
                       ),
-                      onPressed: () => themeProvider.toggleTheme(),
-                      tooltip: themeProvider.isDark
-                          ? 'Switch to Light Mode'
-                          : 'Switch to Dark Mode',
+                      onPressed: () => Scaffold.of(context).openEndDrawer(),
                     ),
-                  );
+                  ),
+                Consumer<ThemeProvider>(
+                  builder: (context, themeProvider, child) {
+                    final onPrimaryColor =
+                        Theme.of(context).colorScheme.onPrimary;
+                    return Container(
+                      margin: const EdgeInsets.only(right: 4),
+                      decoration: BoxDecoration(
+                        color: onPrimaryColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: IconButton(
+                        icon: Icon(
+                          themeProvider.isDark
+                              ? Icons.light_mode_outlined
+                              : Icons.dark_mode_outlined,
+                          color: onPrimaryColor,
+                        ),
+                        onPressed: () => themeProvider.toggleTheme(),
+                        tooltip: themeProvider.isDark
+                            ? 'Switch to Light Mode'
+                            : 'Switch to Dark Mode',
+                      ),
+                    );
+                  },
+                ),
+              ],
+              bottom: TabBar(
+                controller: _tabController,
+                labelColor: Theme.of(context).colorScheme.onPrimary,
+                unselectedLabelColor: Theme.of(context)
+                    .colorScheme
+                    .onPrimary
+                    .withValues(alpha: 0.7),
+                indicatorColor: Theme.of(context).colorScheme.onPrimary,
+                indicatorWeight: 3,
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                tabs: const [
+                  Tab(text: 'Basic'),
+                  Tab(text: 'Scientific'),
+                  Tab(text: 'Advanced'),
+                ],
+                onTap: (index) {
+                  _isUserTabChange = true;
+                  String type = 'basic';
+                  switch (index) {
+                    case 0:
+                      type = 'basic';
+                      break;
+                    case 1:
+                      type = 'scientific';
+                      break;
+                    case 2:
+                      type = 'advanced';
+                      break;
+                  }
+                  calculator.setCalculatorType(type);
                 },
               ),
-            ],
-            bottom: TabBar(
-              controller: _tabController,
-              tabs: const [
-                Tab(text: 'Basic'),
-                Tab(text: 'Scientific'),
-                Tab(text: 'Advanced'),
-              ],
-              onTap: (index) {
-                // Set flag to indicate user initiated tab change
-                _isUserTabChange = true;
-                // Update calculator type when tab is tapped (don't clear immediately)
-                String type = 'basic';
-                switch (index) {
-                  case 0:
-                    type = 'basic';
-                    break;
-                  case 1:
-                    type = 'scientific';
-                    break;
-                  case 2:
-                    type = 'advanced';
-                    break;
-                }
-                calculator.setCalculatorType(
-                    type); // Don't clear here, let animation complete
-              },
             ),
-          ),
-          drawer: const NavigationDrawerWidget(),
-          endDrawer: calculator.currentCalculatorType != 'advanced'
-              ? const HistoryDrawer()
-              : null,
-          body: TabBarView(
-            controller: _tabController,
-            physics:
-                const NeverScrollableScrollPhysics(), // Disable swipe gestures
-            children: [
-              _buildBasicCalculator(),
-              _buildScientificCalculator(),
-              _buildAdvancedCalculator(),
-            ],
+            drawer: const NavigationDrawerWidget(),
+            endDrawer: calculator.currentCalculatorType != 'advanced'
+                ? const HistoryDrawer()
+                : null,
+            body: TabBarView(
+              controller: _tabController,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                _buildBasicCalculator(),
+                _buildScientificCalculator(),
+                _buildAdvancedCalculator(),
+              ],
+            ),
           ),
         );
       },
@@ -217,9 +246,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           children: [
             const Expanded(
                 flex: 2,
-                child: CalculatorDisplay(key: ValueKey('basic_display'))), // Back to original balanced ratio
+                child: CalculatorDisplay(key: ValueKey('basic_display'))),
             Expanded(
-              flex: 5, // Back to original balanced ratio
+              flex: 5,
               child: CalculatorButtons(
                 key: const ValueKey('basic_buttons'),
                 calculator: calculator,
@@ -239,9 +268,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           children: [
             const Expanded(
                 flex: 2,
-                child: CalculatorDisplay(key: ValueKey('scientific_display'))), // Back to original balanced ratio
+                child:
+                    CalculatorDisplay(key: ValueKey('scientific_display'))),
             Expanded(
-              flex: 5, // Back to original balanced ratio
+              flex: 5,
               child: CalculatorButtons(
                 key: const ValueKey('scientific_buttons'),
                 calculator: calculator,
@@ -319,10 +349,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     Widget? screen;
     switch (type) {
       case 'scientific':
-        // Stay in current screen but switch to scientific mode
-        context.read<CalculatorProvider>().setCalculatorTypeAndClear(
-              'scientific',
-            );
+        context.read<CalculatorProvider>().setCalculatorTypeAndClear('scientific');
         return;
       case 'emi':
         screen = const EMICalculatorScreen();
@@ -359,23 +386,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 }
 
-// Tile data class
+// ── Tile data class ──────────────────────────────────────────────────────────
+
 class _TileData {
   final IconData icon;
   final String title;
   final VoidCallback onTap;
-
-  _TileData({
-    required this.icon,
-    required this.title,
-    required this.onTap,
-  });
+  _TileData({required this.icon, required this.title, required this.onTap});
 }
 
-// Animated Tile Grid with staggered entrance
+// ── Animated Tile Grid ───────────────────────────────────────────────────────
+
 class _AnimatedTileGrid extends StatefulWidget {
   final List<_TileData> tiles;
-
   const _AnimatedTileGrid({required this.tiles});
 
   @override
@@ -394,12 +417,7 @@ class _AnimatedTileGridState extends State<_AnimatedTileGrid>
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-
-    _animation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutCubic,
-    );
-
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) _controller.forward();
     });
@@ -425,15 +443,14 @@ class _AnimatedTileGridState extends State<_AnimatedTileGrid>
           ),
           itemCount: widget.tiles.length,
           itemBuilder: (context, index) {
-            // Calculate stagger delay based on index
             final staggerDelay = (index * 0.08).clamp(0.0, 0.6);
             final staggerEnd = (staggerDelay + 0.4).clamp(0.0, 1.0);
-
             double progress = 0.0;
             if (_animation.value > staggerDelay) {
-              progress = ((_animation.value - staggerDelay) / (staggerEnd - staggerDelay)).clamp(0.0, 1.0);
+              progress = ((_animation.value - staggerDelay) /
+                      (staggerEnd - staggerDelay))
+                  .clamp(0.0, 1.0);
             }
-
             return Transform.translate(
               offset: Offset(0, 30 * (1 - progress)),
               child: Opacity(
@@ -455,7 +472,8 @@ class _AnimatedTileGridState extends State<_AnimatedTileGrid>
   }
 }
 
-// Animated Calculator Tile with press effect and icon bounce
+// ── Animated Calculator Tile ─────────────────────────────────────────────────
+
 class _AnimatedCalculatorTile extends StatefulWidget {
   final IconData icon;
   final String title;
@@ -468,7 +486,8 @@ class _AnimatedCalculatorTile extends StatefulWidget {
   });
 
   @override
-  State<_AnimatedCalculatorTile> createState() => _AnimatedCalculatorTileState();
+  State<_AnimatedCalculatorTile> createState() =>
+      _AnimatedCalculatorTileState();
 }
 
 class _AnimatedCalculatorTileState extends State<_AnimatedCalculatorTile>
@@ -486,16 +505,13 @@ class _AnimatedCalculatorTileState extends State<_AnimatedCalculatorTile>
       duration: const Duration(milliseconds: 100),
       vsync: this,
     );
-
     _iconController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
       CurvedAnimation(parent: _pressController, curve: Curves.easeInOut),
     );
-
     _iconBounceAnimation = TweenSequence<double>([
       TweenSequenceItem(
         tween: Tween<double>(begin: 1.0, end: 1.3)
@@ -537,7 +553,6 @@ class _AnimatedCalculatorTileState extends State<_AnimatedCalculatorTile>
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-
     return AnimatedBuilder(
       animation: Listenable.merge([_scaleAnimation, _iconBounceAnimation]),
       builder: (context, child) {
@@ -559,12 +574,14 @@ class _AnimatedCalculatorTileState extends State<_AnimatedCalculatorTile>
                   ],
                 ),
                 border: Border.all(
-                  color: colorScheme.primary.withValues(alpha: _isPressed ? 0.5 : 0.15),
+                  color: colorScheme.primary
+                      .withValues(alpha: _isPressed ? 0.5 : 0.15),
                   width: _isPressed ? 2 : 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: colorScheme.primary.withValues(alpha: _isPressed ? 0.2 : 0.1),
+                    color: colorScheme.primary
+                        .withValues(alpha: _isPressed ? 0.2 : 0.1),
                     blurRadius: _isPressed ? 20 : 12,
                     offset: Offset(0, _isPressed ? 8 : 4),
                     spreadRadius: _isPressed ? 2 : 0,
@@ -581,7 +598,6 @@ class _AnimatedCalculatorTileState extends State<_AnimatedCalculatorTile>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Icon container with glow
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -611,9 +627,9 @@ class _AnimatedCalculatorTileState extends State<_AnimatedCalculatorTile>
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
-                      ),
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onSurface,
+                          ),
                     ),
                   ],
                 ),
@@ -625,4 +641,3 @@ class _AnimatedCalculatorTileState extends State<_AnimatedCalculatorTile>
     );
   }
 }
-

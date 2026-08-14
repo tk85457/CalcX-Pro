@@ -24,8 +24,9 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
   @override
   void initState() {
     super.initState();
+    // Reduced from 600ms → 300ms for snappier app feel
     _entranceController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 300),
       vsync: this,
     );
 
@@ -40,7 +41,7 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
     super.didChangeDependencies();
     if (!_hasAnimated) {
       _hasAnimated = true;
-      Future.delayed(const Duration(milliseconds: 100), () {
+      Future.delayed(const Duration(milliseconds: 60), () {
         if (mounted) {
           _entranceController.forward();
         }
@@ -68,24 +69,24 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
       case 'advanced':
         buttons = _buildAdvancedButtons();
         break;
-      default: // basic calculator
+      default:
         buttons = _buildBasicButtons();
         break;
     }
 
-    // Compact padding for all calculator types
-    final containerPadding = const EdgeInsets.all(6);
+    final containerPadding = widget.calculatorType == 'basic'
+        ? EdgeInsets.zero
+        : const EdgeInsets.all(6);
 
-    // Wrap buttons in GestureDetector to prevent swipe gestures from button presses
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onHorizontalDragStart: (_) {}, // Absorb horizontal drag gestures
-      onHorizontalDragUpdate: (_) {}, // Prevent swipe propagation
+      onHorizontalDragStart: (_) {},
+      onHorizontalDragUpdate: (_) {},
       child: AnimatedBuilder(
         animation: _entranceAnimation,
         builder: (context, child) {
           return Transform.translate(
-            offset: Offset(0, 30 * (1 - _entranceAnimation.value)),
+            offset: Offset(0, 20 * (1 - _entranceAnimation.value)),
             child: Opacity(
               opacity: _entranceAnimation.value,
               child: Container(padding: containerPadding, child: buttons),
@@ -99,7 +100,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
   Widget _buildBasicButtons() {
     return Column(
       children: [
-        // Row 1
         Expanded(
           child: Row(
             children: [
@@ -110,7 +110,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Row 2
         Expanded(
           child: Row(
             children: [
@@ -121,7 +120,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Row 3
         Expanded(
           child: Row(
             children: [
@@ -132,7 +130,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Row 4
         Expanded(
           child: Row(
             children: [
@@ -143,7 +140,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Row 5
         Expanded(
           child: Row(
             children: [
@@ -161,7 +157,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
     int index = 0;
     return Column(
       children: [
-        // First row: Trigonometric functions
         Expanded(
           child: Row(
             children: [
@@ -172,7 +167,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Second row: Inverse trigonometric functions
         Expanded(
           child: Row(
             children: [
@@ -183,7 +177,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Third row: Logarithmic and exponential functions
         Expanded(
           child: Row(
             children: [
@@ -194,7 +187,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Fourth row: Powers and roots
         Expanded(
           child: Row(
             children: [
@@ -205,7 +197,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Fifth row: More roots and absolute value
         Expanded(
           child: Row(
             children: [
@@ -216,7 +207,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Sixth row: Operations and controls
         Expanded(
           child: Row(
             children: [
@@ -227,7 +217,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Seventh row: Numbers
         Expanded(
           child: Row(
             children: [
@@ -238,7 +227,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Eighth row: Numbers
         Expanded(
           child: Row(
             children: [
@@ -249,7 +237,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Ninth row: Numbers
         Expanded(
           child: Row(
             children: [
@@ -260,7 +247,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Tenth row: Bottom row
         Expanded(
           child: Row(
             children: [
@@ -278,7 +264,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
     int index = 0;
     return Column(
       children: [
-        // Converter input row
         Expanded(
           child: Row(
             children: [
@@ -289,7 +274,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Converter row 2
         Expanded(
           child: Row(
             children: [
@@ -300,7 +284,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Converter row 3
         Expanded(
           child: Row(
             children: [
@@ -310,7 +293,6 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             ],
           ),
         ),
-        // Converter row 4
         Expanded(
           child: Row(
             children: [
@@ -336,11 +318,8 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
         entranceAnimation: _entranceAnimation,
         child: Builder(
           builder: (context) {
-            // Calculate responsive padding based on screen size
             final screenWidth = MediaQuery.of(context).size.width;
             final buttonPadding = screenWidth < 400 ? 1.5 : 2.5;
-
-            // Determine which bracket to show
             final currentExpression = widget.calculator.expression;
             int openBrackets = '('.allMatches(currentExpression).length;
             int closeBrackets = ')'.allMatches(currentExpression).length;
@@ -349,6 +328,7 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             return Padding(
               padding: EdgeInsets.all(buttonPadding),
               child: _PressableButton(
+                isBasic: widget.calculatorType == 'basic',
                 onPressed: () {
                   widget.calculator.appendSmartBracket();
                 },
@@ -365,7 +345,8 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
     );
   }
 
-  Widget _buildAnimatedButton(String text, _ButtonType type, int staggerIndex, {int flex = 1}) {
+  Widget _buildAnimatedButton(String text, _ButtonType type, int staggerIndex,
+      {int flex = 1}) {
     return Expanded(
       flex: flex,
       child: _AnimatedCalculatorButton(
@@ -373,26 +354,27 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
         entranceAnimation: _entranceAnimation,
         child: Builder(
           builder: (context) {
-            // Calculate responsive padding based on screen size and calculator type
             final screenWidth = MediaQuery.of(context).size.width;
-            // Ultra compact padding for basic calculator - minimal button spacing
-            final basePadding = screenWidth < 400 ? 1.0 : 2.0;
+            final basePadding = screenWidth < 400 ? 2.0 : 4.0;
             final buttonPadding = widget.calculatorType == 'basic'
-                ? basePadding * 0.02 // Even more compact for basic calculator
+                ? basePadding * 1.5
                 : basePadding * 0.7;
 
-            // Wrap backspace button with GestureDetector for long-press
             if (text == '⌫') {
               return Padding(
                 padding: EdgeInsets.all(buttonPadding),
                 child: GestureDetector(
                   onTap: () => widget.calculator.backspace(),
-                  onLongPressStart: (_) => widget.calculator.startContinuousDelete(),
-                  onLongPressEnd: (_) => widget.calculator.stopContinuousDelete(),
+                  onLongPressStart: (_) =>
+                      widget.calculator.startContinuousDelete(),
+                  onLongPressEnd: (_) =>
+                      widget.calculator.stopContinuousDelete(),
                   child: _PressableButton(
+                    isBasic: widget.calculatorType == 'basic',
                     onPressed: () => widget.calculator.backspace(),
-                    style: _getButtonStyle(context, type, widget.calculator.buttonsLocked),
-                    child: const Icon(Icons.backspace),
+                    style: _getButtonStyle(
+                        context, type, widget.calculator.buttonsLocked),
+                    child: const Icon(Icons.backspace_outlined),
                   ),
                 ),
               );
@@ -401,16 +383,18 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
             return Padding(
               padding: EdgeInsets.all(buttonPadding),
               child: _PressableButton(
+                isBasic: widget.calculatorType == 'basic',
                 onPressed: () {
-                  // Samsung Calculator style - functional disabling with error
                   if (!_isButtonEnabled(text, widget.calculator)) {
                     widget.calculator.showError('Invalid format');
                     return;
                   }
                   widget.calculator.buttonPressed(text);
                 },
-                style: _getButtonStyle(context, type, widget.calculator.buttonsLocked),
-                child: Text(text, style: _getButtonTextStyle(context, type, text)),
+                style: _getButtonStyle(
+                    context, type, widget.calculator.buttonsLocked),
+                child:
+                    Text(text, style: _getButtonTextStyle(context, type, text)),
               ),
             );
           },
@@ -428,93 +412,101 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
         backgroundColor: colorScheme.surface.withValues(alpha: 0.3),
         foregroundColor: colorScheme.onSurface.withValues(alpha: 0.5),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(
+              widget.calculatorType == 'basic' ? 32 : 16),
         ),
         elevation: 0,
         minimumSize: widget.calculatorType == 'basic'
-            ? const Size(80, 60) // Increased height from 48 to 60
-            : const Size(0, 70), // Increased height from 58 to 70
+            ? const Size(80, 80)
+            : const Size(0, 70),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       );
     }
 
     switch (type) {
       case _ButtonType.primary:
-        // Equals button - use primary color with high contrast
         return ElevatedButton.styleFrom(
           backgroundColor: colorScheme.primary,
           foregroundColor: colorScheme.onPrimary,
+          disabledBackgroundColor: colorScheme.primary,
+          disabledForegroundColor: colorScheme.onPrimary,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(
+                widget.calculatorType == 'basic' ? 32 : 16),
           ),
-          elevation: 4,
+          elevation: widget.calculatorType == 'basic' ? 2 : 4,
           shadowColor: colorScheme.primary.withValues(alpha: 0.3),
           minimumSize: widget.calculatorType == 'basic'
-              ? const Size(80, 60) // Increased height from 48 to 60
-              : const Size(0, 70), // Increased height from 58 to 70
+              ? const Size(80, 80)
+              : const Size(0, 70),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         );
       case _ButtonType.secondary:
-        // Function buttons (C, ⌫, ±, sin, cos, etc.) - use secondary with good contrast
         return ElevatedButton.styleFrom(
           backgroundColor: colorScheme.secondaryContainer,
           foregroundColor: colorScheme.onSecondaryContainer,
+          disabledBackgroundColor: colorScheme.secondaryContainer,
+          disabledForegroundColor: colorScheme.onSecondaryContainer,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(
+                widget.calculatorType == 'basic' ? 32 : 16),
           ),
-          elevation: 2,
+          elevation: widget.calculatorType == 'basic' ? 1 : 2,
           shadowColor: colorScheme.shadow.withValues(alpha: 0.2),
           minimumSize: widget.calculatorType == 'basic'
-              ? const Size(80, 60) // Increased height from 48 to 60
-              : const Size(0, 70), // Increased height from 58 to 70
+              ? const Size(80, 80)
+              : const Size(0, 70),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         );
       case _ButtonType.operator:
-        // Operator buttons (+, -, ×, ÷) - use primary color for highlighting
         return ElevatedButton.styleFrom(
           backgroundColor: colorScheme.primary,
           foregroundColor: colorScheme.onPrimary,
+          disabledBackgroundColor: colorScheme.primary,
+          disabledForegroundColor: colorScheme.onPrimary,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(
+                widget.calculatorType == 'basic' ? 32 : 16),
           ),
-          elevation: 2,
+          elevation: widget.calculatorType == 'basic' ? 1 : 2,
           shadowColor: colorScheme.primary.withValues(alpha: 0.3),
           minimumSize: widget.calculatorType == 'basic'
-              ? const Size(80, 60) // Increased height from 48 to 60
-              : const Size(0, 70), // Increased height from 58 to 70
+              ? const Size(80, 80)
+              : const Size(0, 70),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         );
       case _ButtonType.number:
-        // Number buttons - use surface with subtle elevation
         return ElevatedButton.styleFrom(
           backgroundColor: colorScheme.surface,
           foregroundColor: colorScheme.onSurface,
+          disabledBackgroundColor: colorScheme.surface,
+          disabledForegroundColor: colorScheme.onSurface,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(
+                widget.calculatorType == 'basic' ? 32 : 16),
           ),
           elevation: 1,
           shadowColor: colorScheme.shadow.withValues(alpha: 0.1),
-          side: BorderSide(
-            color: colorScheme.outline.withValues(alpha: 0.2),
-            width: 0.5,
-          ),
+          side: widget.calculatorType == 'basic'
+              ? BorderSide(
+                  color: colorScheme.outline.withValues(alpha: 0.05),
+                  width: 0.5)
+              : BorderSide(
+                  color: colorScheme.outline.withValues(alpha: 0.2),
+                  width: 0.5),
           minimumSize: widget.calculatorType == 'basic'
-              ? const Size(0, 60) // Increased height from 48 to 60
-              : const Size(0, 70), // Increased height from 58 to 70
+              ? const Size(0, 80)
+              : const Size(0, 70),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         );
     }
   }
 
   bool _isButtonEnabled(String text, CalculatorProvider calculator) {
-    // Samsung Calculator style - only these buttons are disabled when no valid operand
     final disabledButtons = ['x²', 'x³', 'xʸ', '!'];
-
     if (disabledButtons.contains(text)) {
       return calculator.canApplyUnaryOperator;
     }
-
-    // All other buttons are always enabled
     return true;
   }
 
@@ -522,12 +514,20 @@ class _CalculatorButtonsState extends State<CalculatorButtons>
       BuildContext context, _ButtonType type, String text) {
     final baseStyle = Theme.of(context).textTheme.headlineSmall!;
 
-    // Special handling for inverse trigonometric functions - make them smaller
     final inverseTrigFunctions = ['sin⁻¹', 'cos⁻¹', 'tan⁻¹'];
     if (inverseTrigFunctions.contains(text)) {
       return baseStyle.copyWith(
         fontWeight: FontWeight.w600,
-        fontSize: baseStyle.fontSize! * 0.7, // Make font 70% of original size
+        fontSize: baseStyle.fontSize! * 0.68,
+      );
+    }
+
+    // Slightly smaller for multi-char function names
+    final multiCharFunctions = ['log', 'sin', 'cos', 'tan', 'ln', '10ˣ', 'eˣ', '|x|', '∛'];
+    if (multiCharFunctions.contains(text)) {
+      return baseStyle.copyWith(
+        fontWeight: FontWeight.w600,
+        fontSize: baseStyle.fontSize! * 0.82,
       );
     }
 
@@ -557,21 +557,22 @@ class _AnimatedCalculatorButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Calculate stagger delay based on index
-    final staggerDelay = (staggerIndex * 0.02).clamp(0.0, 0.5);
+    // Tighter stagger — max 0.15 offset (was 0.3)
+    final staggerDelay = (staggerIndex * 0.005).clamp(0.0, 0.15);
     final staggerEnd = (staggerDelay + 0.5).clamp(0.0, 1.0);
 
     return AnimatedBuilder(
       animation: entranceAnimation,
       builder: (context, child) {
-        // Calculate progress for this specific button
         double progress = 0.0;
         if (entranceAnimation.value > staggerDelay) {
-          progress = ((entranceAnimation.value - staggerDelay) / (staggerEnd - staggerDelay)).clamp(0.0, 1.0);
+          progress = ((entranceAnimation.value - staggerDelay) /
+                  (staggerEnd - staggerDelay))
+              .clamp(0.0, 1.0);
         }
 
         return Transform.scale(
-          scale: 0.8 + (0.2 * progress),
+          scale: 0.85 + (0.15 * progress),
           child: Opacity(
             opacity: progress,
             child: child,
@@ -583,16 +584,18 @@ class _AnimatedCalculatorButton extends StatelessWidget {
   }
 }
 
-/// Pressable button with scale animation
+/// Pressable button with ultra-smooth scale animation
 class _PressableButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final ButtonStyle style;
   final Widget child;
+  final bool isBasic;
 
   const _PressableButton({
     required this.onPressed,
     required this.style,
     required this.child,
+    this.isBasic = false,
   });
 
   @override
@@ -608,17 +611,18 @@ class _PressableButtonState extends State<_PressableButton>
   @override
   void initState() {
     super.initState();
+    // Ultra-fast 50ms press feedback — snappiest possible
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 100),
+      duration: const Duration(milliseconds: 50),
       vsync: this,
     );
 
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.91).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
     );
 
-    _elevationAnimation = Tween<double>(begin: 1.0, end: 0.5).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    _elevationAnimation = Tween<double>(begin: 1.0, end: 0.4).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
     );
   }
 
@@ -656,19 +660,20 @@ class _PressableButtonState extends State<_PressableButton>
             scale: _scaleAnimation.value,
             child: Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius:
+                    BorderRadius.circular(widget.isBasic ? 32 : 16),
                 boxShadow: [
                   BoxShadow(
                     color: Theme.of(context).colorScheme.shadow.withValues(
-                      alpha: 0.15 * _elevationAnimation.value,
-                    ),
-                    blurRadius: 8 * _elevationAnimation.value,
-                    offset: Offset(0, 4 * _elevationAnimation.value),
+                          alpha: 0.12 * _elevationAnimation.value,
+                        ),
+                    blurRadius: 6 * _elevationAnimation.value,
+                    offset: Offset(0, 3 * _elevationAnimation.value),
                   ),
                 ],
               ),
               child: ElevatedButton(
-                onPressed: widget.onPressed,
+                onPressed: null, // GestureDetector handles tap
                 style: widget.style,
                 child: widget.child,
               ),
@@ -681,4 +686,3 @@ class _PressableButtonState extends State<_PressableButton>
 }
 
 enum _ButtonType { number, operator, secondary, primary }
-

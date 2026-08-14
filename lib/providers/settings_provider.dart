@@ -40,25 +40,25 @@ class SettingsProvider extends ChangeNotifier {
     await _loadSettings();
   }
 
+  Future<Box> _openSettingsBox() async {
+    // If box is already open, return it directly — avoids double-open crash
+    if (Hive.isBoxOpen(_settingsBoxName)) {
+      return Hive.box(_settingsBoxName);
+    }
+    return await Hive.openBox(_settingsBoxName);
+  }
+
   Future<void> _loadSettings() async {
     try {
-      final box = await Hive.openBox(_settingsBoxName);
-      _selectedThemeIndex = box.get(_themeIndexKey, defaultValue: 0);
-      _autoCalculate = box.get(_autoCalculateKey, defaultValue: true);
-      _currencyApiKey = box.get(_apiKeyKey, defaultValue: '');
+      final box = await _openSettingsBox();
+      _selectedThemeIndex = box.get(_themeIndexKey, defaultValue: 0) as int;
+      _autoCalculate = box.get(_autoCalculateKey, defaultValue: true) as bool;
+      _currencyApiKey = box.get(_apiKeyKey, defaultValue: '') as String;
     } catch (e) {
-      // If there's an error loading settings, use defaults and try to create box
-      try {
-        final box = await Hive.openBox(_settingsBoxName);
-        _selectedThemeIndex = box.get(_themeIndexKey, defaultValue: 0);
-        _autoCalculate = box.get(_autoCalculateKey, defaultValue: true);
-        _currencyApiKey = box.get(_apiKeyKey, defaultValue: '');
-      } catch (error) {
-        // Use defaults if all else fails
-        _selectedThemeIndex = 0;
-        _autoCalculate = true;
-        _currencyApiKey = '';
-      }
+      // Use safe defaults if box open fails (e.g. corrupted on first install)
+      _selectedThemeIndex = 0;
+      _autoCalculate = true;
+      _currencyApiKey = '';
     }
     notifyListeners();
   }
@@ -66,24 +66,30 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setSelectedTheme(int index) async {
     if (index >= 0 && index < themeOptions.length) {
       _selectedThemeIndex = index;
-      final box = await Hive.openBox(_settingsBoxName);
-      await box.put(_themeIndexKey, index);
       notifyListeners();
+      try {
+        final box = await _openSettingsBox();
+        await box.put(_themeIndexKey, index);
+      } catch (_) {}
     }
   }
 
   Future<void> toggleAutoCalculate() async {
     _autoCalculate = !_autoCalculate;
-    final box = await Hive.openBox(_settingsBoxName);
-    await box.put(_autoCalculateKey, _autoCalculate);
     notifyListeners();
+    try {
+      final box = await _openSettingsBox();
+      await box.put(_autoCalculateKey, _autoCalculate);
+    } catch (_) {}
   }
 
   Future<void> setCurrencyApiKey(String apiKey) async {
     _currencyApiKey = apiKey.trim();
-    final box = await Hive.openBox(_settingsBoxName);
-    await box.put(_apiKeyKey, _currencyApiKey);
     notifyListeners();
+    try {
+      final box = await _openSettingsBox();
+      await box.put(_apiKeyKey, _currencyApiKey);
+    } catch (_) {}
   }
 
   // Get theme data based on selected theme

@@ -2,6 +2,7 @@ import '../models/theme_model.dart';
 
 class AppConstants {
   static const String appName = 'CalcX Pro';
+  static const String appVersion = '1.0.2';
   static const String historyBox = 'history';
   static const String themeBox = 'theme';
 

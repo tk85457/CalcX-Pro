@@ -1,6 +1,6 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:vibration/vibration.dart';
+import 'package:flutter/services.dart';
 import '../utils/calculator_utils.dart';
 import 'history_provider.dart';
 
@@ -34,7 +34,7 @@ class CalculatorProvider extends ChangeNotifier {
   String get expression => _getCurrentExpression();
   bool get isResult => _getCurrentIsResult();
   String get calculatorType => _calculatorType;
-  bool get autoCalculate => _autoCalculate && _calculatorType == 'basic';
+  bool get autoCalculate => shouldAutoCalculate;
   bool get shouldAutoCalculate =>
       _autoCalculate &&
       (_calculatorType == 'basic' ||
@@ -136,20 +136,24 @@ class CalculatorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-
-
   void _insertText(String value) {
     String currentDisplay = _getCurrentDisplay();
 
     // Check bounds before properties
     if (_cursorPosition < 0) _cursorPosition = 0;
-    if (_cursorPosition > currentDisplay.length) _cursorPosition = currentDisplay.length;
+    if (_cursorPosition > currentDisplay.length) {
+      _cursorPosition = currentDisplay.length;
+    }
 
     // Handle Result State
     if (isResult) {
-      if (_binaryOperators.contains(value) || value == '^' || value == '%' || value == 'x²' || value == 'x³' || value == 'xʸ') {
+      if (_binaryOperators.contains(value) ||
+          value == '^' ||
+          value == '%' ||
+          value == 'x²' ||
+          value == 'x³' ||
+          value == 'xʸ') {
         // Continue with result
-        // currentDisplay is already the result
         _cursorPosition = currentDisplay.length;
       } else {
         // Start new calculation
@@ -158,28 +162,28 @@ class CalculatorProvider extends ChangeNotifier {
       }
 
       switch (_calculatorType) {
-        case 'basic': _basicIsResult = false; break;
-        case 'scientific': _scientificIsResult = false; break;
-        case 'advanced': _advancedIsResult = false; break;
+        case 'basic':
+          _basicIsResult = false;
+          break;
+        case 'scientific':
+          _scientificIsResult = false;
+          break;
+        case 'advanced':
+          _advancedIsResult = false;
+          break;
       }
     }
 
     // Insert text
     final newDisplay = currentDisplay.substring(0, _cursorPosition) +
-                       value +
-                       currentDisplay.substring(_cursorPosition);
+        value +
+        currentDisplay.substring(_cursorPosition);
 
     // Update State
     _updateDisplayAndExpression(newDisplay);
 
     // Move cursor
     _cursorPosition += value.length;
-
-    // Safety check: if we were at the end before insertion (nearly),
-    // and this is a scientific function, ensure we are at the end
-    if (_calculatorType != 'basic' && isResult) {
-      _moveCursorToEnd();
-    }
 
     if (shouldAutoCalculate) {
       _tryAutoCalculate();
@@ -207,7 +211,6 @@ class CalculatorProvider extends ChangeNotifier {
   void _tryAutoCalculate() {
     try {
       final currentExpression = expression;
-      // Only auto-calculate if expression is not empty (after trimming) and contains actual input (not just operators)
       if (currentExpression.trim().isNotEmpty &&
           CalculatorUtils.isExpressionComplete(currentExpression) &&
           RegExp(r'\d').hasMatch(currentExpression)) {
@@ -229,7 +232,6 @@ class CalculatorProvider extends ChangeNotifier {
             break;
         }
       } else {
-        // Clear auto-calculated result when input is empty or invalid
         switch (_calculatorType) {
           case 'basic':
             _basicAutoCalculatedResult = '';
@@ -243,7 +245,6 @@ class CalculatorProvider extends ChangeNotifier {
         }
       }
     } catch (_) {
-      // Clear auto-calculated result on error
       switch (_calculatorType) {
         case 'basic':
           _basicAutoCalculatedResult = '';
@@ -260,13 +261,9 @@ class CalculatorProvider extends ChangeNotifier {
 
   void startContinuousDelete() {
     _vibrate();
-
-    // Ek baar turant delete
     backspace();
-
-    // Fir repeat delete
     _deleteTimer = Timer.periodic(
-      const Duration(milliseconds: 120),
+      const Duration(milliseconds: 100),
       (timer) {
         final currentExpression = expression;
         if (currentExpression.isEmpty) {
@@ -286,14 +283,11 @@ class CalculatorProvider extends ChangeNotifier {
   void showError(String message) {
     _errorMessage = message;
     _vibrateStrong();
-
-    // Clear error after 0.5 seconds (reduced from 1 second)
     _errorTimer?.cancel();
     _errorTimer = Timer(const Duration(milliseconds: 500), () {
       _errorMessage = '';
       notifyListeners();
     });
-
     notifyListeners();
   }
 
@@ -301,8 +295,6 @@ class CalculatorProvider extends ChangeNotifier {
     _errorMessage = '';
     notifyListeners();
   }
-
-
 
   void _showInvalidFormat() {
     showError('Invalid format');
@@ -323,10 +315,7 @@ class CalculatorProvider extends ChangeNotifier {
     _calculatorType = type;
     clear();
     _moveCursorToEnd();
-    // Ensure auto-calculated result is cleared for the new mode
     _tryAutoCalculate();
-    // Don't clear error message when switching calculator types
-    // Error message is already cleared in clear() method, so we need to preserve it
     notifyListeners();
   }
 
@@ -349,20 +338,18 @@ class CalculatorProvider extends ChangeNotifier {
   void appendOperator(String operator) {
     final currentDisplay = display;
 
-    // 1. Smart Minus for Absolute Value: |anydigit| -> |-anydigit|
-    // This should work even if isPrevOperator is false (since '|' is not an operator)
+    // Smart Minus for Absolute Value: |anydigit| -> |-anydigit|
     if (operator == '-' &&
         _cursorPosition > 0 &&
         _cursorPosition == currentDisplay.length &&
         currentDisplay.endsWith('|')) {
-
       int lastPipe = currentDisplay.length - 1;
       int firstPipe = currentDisplay.lastIndexOf('|', lastPipe - 1);
-
       if (firstPipe != -1) {
         String inside = currentDisplay.substring(firstPipe + 1, lastPipe);
         if (inside.isNotEmpty && !inside.startsWith('-')) {
-          final newDisplay = '${currentDisplay.substring(0, firstPipe + 1)}-$inside|';
+          final newDisplay =
+              '${currentDisplay.substring(0, firstPipe + 1)}-$inside|';
           _updateDisplayAndExpression(newDisplay);
           _cursorPosition = newDisplay.length;
           notifyListeners();
@@ -371,24 +358,21 @@ class CalculatorProvider extends ChangeNotifier {
       }
     }
 
-    // 2. Standard operator handling
+    // Standard operator handling
     if (_cursorPosition > 0 && _cursorPosition <= currentDisplay.length) {
       final prevChar = currentDisplay[_cursorPosition - 1];
       final isPrevOperator = '+-×÷%^.'.contains(prevChar);
 
       if (isPrevOperator) {
         if (operator == '-') {
-          // Allow negative sign after operator
           _insertText(operator);
           return;
         }
-
         if (operator == prevChar) {
           showError('Invalid format');
           return;
         }
-
-        backspace(); // Replace current operator
+        backspace();
         _insertText(operator);
         return;
       }
@@ -414,45 +398,24 @@ class CalculatorProvider extends ChangeNotifier {
 
       if (currentExpression.isEmpty) return;
 
-      if (_calculatorType == 'basic') {
-        // Add closing bracket if missing
-        int openBrackets = '('.allMatches(currentExpression).length;
-        int closeBrackets = ')'.allMatches(currentExpression).length;
-        if (openBrackets > closeBrackets) {
-          _updateDisplayAndExpression('$currentDisplay)');
-        }
-
-        if (!CalculatorUtils.isExpressionComplete(expression)) {
-          _setErrorState();
-          return;
-        }
-
-        final originalExpression = expression;
-        final result = CalculatorUtils.evaluateExpression(expression);
-        final formattedResult = CalculatorUtils.formatResult(result);
-
-        _setResultState(formattedResult);
-        _saveToHistory(originalExpression, formattedResult);
-      } else {
-        // Scientific/Advanced
-        int openBrackets = '('.allMatches(expression).length;
-        int closeBrackets = ')'.allMatches(expression).length;
-        if (openBrackets > closeBrackets) {
-          _updateDisplayAndExpression('$currentDisplay)');
-        }
-
-        if (!CalculatorUtils.isExpressionComplete(expression)) {
-          _setErrorState();
-          return;
-        }
-
-        final originalExpression = expression;
-        final result = CalculatorUtils.evaluateExpression(expression);
-        final formattedResult = CalculatorUtils.formatResult(result);
-
-        _setResultState(formattedResult);
-        _saveToHistory(originalExpression, formattedResult);
+      // Auto-close brackets
+      int openBrackets = '('.allMatches(currentExpression).length;
+      int closeBrackets = ')'.allMatches(currentExpression).length;
+      if (openBrackets > closeBrackets) {
+        _updateDisplayAndExpression('$currentDisplay)');
       }
+
+      if (!CalculatorUtils.isExpressionComplete(expression)) {
+        _setErrorState();
+        return;
+      }
+
+      final originalExpression = expression;
+      final result = CalculatorUtils.evaluateExpression(expression);
+      final formattedResult = CalculatorUtils.formatResult(result);
+
+      _setResultState(formattedResult);
+      _saveToHistory(originalExpression, formattedResult);
       _moveCursorToEnd();
     } catch (e) {
       _handleCalculationError(e);
@@ -461,9 +424,18 @@ class CalculatorProvider extends ChangeNotifier {
 
   void _setErrorState() {
     switch (_calculatorType) {
-      case 'basic': _basicDisplay = 'Error'; _basicIsResult = true; break;
-      case 'scientific': _scientificDisplay = 'Error'; _scientificIsResult = true; break;
-      case 'advanced': _advancedDisplay = 'Error'; _advancedIsResult = true; break;
+      case 'basic':
+        _basicDisplay = 'Error';
+        _basicIsResult = true;
+        break;
+      case 'scientific':
+        _scientificDisplay = 'Error';
+        _scientificIsResult = true;
+        break;
+      case 'advanced':
+        _advancedDisplay = 'Error';
+        _advancedIsResult = true;
+        break;
     }
     _cursorPosition = display.length;
     notifyListeners();
@@ -504,9 +476,18 @@ class CalculatorProvider extends ChangeNotifier {
     }
 
     switch (_calculatorType) {
-      case 'basic': _basicDisplay = errorMessage; _basicIsResult = true; break;
-      case 'scientific': _scientificDisplay = errorMessage; _scientificIsResult = true; break;
-      case 'advanced': _advancedDisplay = errorMessage; _advancedIsResult = true; break;
+      case 'basic':
+        _basicDisplay = errorMessage;
+        _basicIsResult = true;
+        break;
+      case 'scientific':
+        _scientificDisplay = errorMessage;
+        _scientificIsResult = true;
+        break;
+      case 'advanced':
+        _advancedDisplay = errorMessage;
+        _advancedIsResult = true;
+        break;
     }
     _saveToHistory(expression, errorMessage);
     _moveCursorToEnd();
@@ -619,26 +600,19 @@ class CalculatorProvider extends ChangeNotifier {
   }
 
   void _appendScientificFunction(String function) {
-    if ([
-      'sin', 'cos', 'tan', 'log', 'ln', 'sin⁻¹', 'cos⁻¹', 'tan⁻¹'
-    ].contains(function)) {
+    if (['sin', 'cos', 'tan', 'log', 'ln', 'sin⁻¹', 'cos⁻¹', 'tan⁻¹']
+        .contains(function)) {
       _insertText('$function(');
     } else if (function == '√' || function == '∛') {
-      // Re-enable "wrap" behavior for roots as requested: "jaise ye kaam kar raha tha pahle"
       final currentDisplay = display;
-
-      // If display is empty or error, just insert normally
       if (currentDisplay.isEmpty || currentDisplay == 'Error') {
         _insertText('$function(');
       } else {
-        // Prepend root symbol to existing expression
         final nextVal = '$function($currentDisplay';
         _updateDisplayAndExpression(nextVal);
         _moveCursorToEnd();
       }
-    } else if ([
-      '10ˣ', 'eˣ'
-    ].contains(function)) {
+    } else if (['10ˣ', 'eˣ'].contains(function)) {
       _insertText('$function(');
     } else if (function == 'x²' || function == 'x³') {
       if (!canApplyUnaryOperator) {
@@ -648,27 +622,19 @@ class CalculatorProvider extends ChangeNotifier {
       _insertText(function == 'x²' ? '²' : '³');
     } else if (function == '|x|') {
       final currentDisplay = display;
-      // Fix: Ensure cursor is within valid bounds of the string before checking character
       if (_cursorPosition > 0 &&
           _cursorPosition <= currentDisplay.length &&
           '0123456789'.contains(currentDisplay[_cursorPosition - 1])) {
-        // Wrap previous number behavior requested by user (e.g. "5" -> "|5|")
-        // Get the number ending at cursor
         int start = _cursorPosition - 1;
         while (start > 0 && '0123456789.'.contains(currentDisplay[start - 1])) {
           start--;
         }
         final number = currentDisplay.substring(start, _cursorPosition);
-
-        // Delete the number
         for (int i = 0; i < number.length; i++) {
           backspace();
         }
-
-        // Insert wrapped number
         _insertText('|$number|');
       } else {
-        // Standard behavior
         _insertText('|');
       }
     } else if (function == 'xʸ') {
@@ -677,13 +643,12 @@ class CalculatorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Helper to check if binary operator is used at start
   bool _isInvalidOperatorWithoutInput(String value) {
     final currentExpression = expression;
     return _binaryOperators.contains(value) &&
         currentExpression.isEmpty &&
         value != '-' &&
-        value != '+'; // Allow unary plus (+45) as requested
+        value != '+';
   }
 
   void setDisplay(String value) {
@@ -725,7 +690,6 @@ class CalculatorProvider extends ChangeNotifier {
         _advancedIsResult = false;
         break;
     }
-    // Trigger auto-calculation when loading expression from history
     if (shouldAutoCalculate) {
       _tryAutoCalculate();
     }
@@ -734,37 +698,21 @@ class CalculatorProvider extends ChangeNotifier {
 
   void appendSmartBracket() {
     final currentDisplay = display;
-
-    // Count opening and closing brackets
     int openBrackets = '('.allMatches(currentDisplay).length;
     int closeBrackets = ')'.allMatches(currentDisplay).length;
-
-    String bracket;
-    if (openBrackets > closeBrackets) {
-      // Add closing bracket if there are more opening brackets
-      bracket = ')';
-    } else {
-      // Add opening bracket otherwise
-      bracket = '(';
-    }
-
+    String bracket = openBrackets > closeBrackets ? ')' : '(';
     _insertText(bracket);
     notifyListeners();
   }
 
   void buttonPressed(String value) {
-    // Check if buttons are locked due to error
-    if (_buttonsLocked) {
-      return; // Ignore button presses when locked
-    }
+    if (_buttonsLocked) return;
 
-    // Handle backspace button
     if (value == '⌫') {
       backspace();
       return;
     }
 
-    // Handle different calculator types
     switch (_calculatorType) {
       case 'basic':
         _handleBasicCalculatorInput(value);
@@ -781,14 +729,9 @@ class CalculatorProvider extends ChangeNotifier {
     }
   }
 
-
   void backspace() {
-    if (_isBackspacing) return;
-    _isBackspacing = true;
-
     _vibrate();
 
-    // If display shows 'Error', clear everything
     final currentDisplay = display;
     if (currentDisplay == 'Error') {
       clear();
@@ -796,16 +739,13 @@ class CalculatorProvider extends ChangeNotifier {
       return;
     }
 
-    // Cursor-based backspace
     if (_cursorPosition > 0 && currentDisplay.isNotEmpty) {
-      // Handle special cases: deleting part of a function or constant might need specific logic
-      // For now, simpler approach: just delete char before cursor
-
-      // Check bounds
-      if (_cursorPosition > currentDisplay.length) _cursorPosition = currentDisplay.length;
+      if (_cursorPosition > currentDisplay.length) {
+        _cursorPosition = currentDisplay.length;
+      }
 
       final newDisplay = currentDisplay.substring(0, _cursorPosition - 1) +
-                         currentDisplay.substring(_cursorPosition);
+          currentDisplay.substring(_cursorPosition);
 
       _updateDisplayAndExpression(newDisplay);
       _cursorPosition--;
@@ -816,38 +756,19 @@ class CalculatorProvider extends ChangeNotifier {
     }
 
     notifyListeners();
-
-    Future.delayed(const Duration(milliseconds: 100), () {
-      _isBackspacing = false;
-    });
   }
 
   void _handleBasicCalculatorInput(String value) {
-    // 🚫 Operator without input → INVALID FORMAT
     if (_isInvalidOperatorWithoutInput(value)) {
       _showInvalidFormat();
       return;
     }
 
-    // Check if it's a digit
-    if (value == '0' ||
-        value == '1' ||
-        value == '2' ||
-        value == '3' ||
-        value == '4' ||
-        value == '5' ||
-        value == '6' ||
-        value == '7' ||
-        value == '8' ||
-        value == '9') {
+    if ('0123456789'.contains(value)) {
       appendDigit(value);
-    }
-    // Check if it's an operator
-    else if (value == '+' || value == '-' || value == '×' || value == '÷') {
+    } else if (value == '+' || value == '-' || value == '×' || value == '÷') {
       appendOperator(value);
-    }
-    // Check if it's a special function
-    else if (value == 'C') {
+    } else if (value == 'C') {
       clear();
     } else if (value == '±') {
       toggleSign();
@@ -858,57 +779,34 @@ class CalculatorProvider extends ChangeNotifier {
     } else if (value == '=') {
       calculate();
     } else {
-      // For other functions like scientific functions
       appendFunction(value);
     }
   }
 
   void _handleScientificCalculatorInput(String value) {
-    // 🚫 Operator without input → INVALID FORMAT
     if (_isInvalidOperatorWithoutInput(value)) {
       _showInvalidFormat();
       return;
     }
 
-    // Check if it's a digit
-    if (value == '0' ||
-        value == '1' ||
-        value == '2' ||
-        value == '3' ||
-        value == '4' ||
-        value == '5' ||
-        value == '6' ||
-        value == '7' ||
-        value == '8' ||
-        value == '9') {
+    if ('0123456789'.contains(value)) {
       appendDigit(value);
-    }
-    // Operators (only binary operators)
-    else if (value == '+' ||
+    } else if (value == '+' ||
         value == '-' ||
         value == '×' ||
         value == '÷' ||
         value == '^' ||
         value == '%') {
       appendOperator(value);
-    }
-    // Parentheses
-    else if (value == '(' || value == ')') {
+    } else if (value == '(' || value == ')') {
       _insertText(value);
-    }
-    // Constants
-    else if (value == 'π') {
+    } else if (value == 'π') {
       appendConstant('π');
     } else if (value == 'e') {
       appendConstant('e');
-    }
-    // Factorial
-    else if (value == '!') {
+    } else if (value == '!') {
       _insertText('!');
-    }
-
-    // Scientific functions
-    else if (value == 'sin' ||
+    } else if (value == 'sin' ||
         value == 'cos' ||
         value == 'tan' ||
         value == 'log' ||
@@ -925,14 +823,10 @@ class CalculatorProvider extends ChangeNotifier {
         value == '√' ||
         value == '∛') {
       _appendScientificFunction(value);
-    }
-    // Special functions
-    else if (value == 'C') {
+    } else if (value == 'C') {
       clear();
     } else if (value == '±') {
       toggleSign();
-    } else if (value == '%') {
-       appendOperator('%');
     } else if (value == '.') {
       addDecimal();
     } else if (value == '=') {
@@ -941,35 +835,14 @@ class CalculatorProvider extends ChangeNotifier {
   }
 
   void _handleAdvancedCalculatorInput(String value) {
-    // Advanced Calculator should behave exactly like Scientific Calculator
     _handleScientificCalculatorInput(value);
   }
 
-  Future<void> _vibrate() async {
-    try {
-      // Check if vibration is available on this platform
-      final hasVibrator = await Vibration.hasVibrator();
-      if (hasVibrator == true) {
-        Vibration.vibrate(duration: 50);
-      }
-      // If no vibrator available, silently continue (no vibration)
-    } catch (e) {
-      // If vibration fails for any reason, silently continue
-      // This prevents crashes on platforms that don't support vibration
-    }
+  void _vibrate() {
+    HapticFeedback.lightImpact();
   }
 
-  Future<void> _vibrateStrong() async {
-    try {
-      // Check if vibration is available on this platform
-      final hasVibrator = await Vibration.hasVibrator();
-      if (hasVibrator == true) {
-        Vibration.vibrate(duration: 100, amplitude: 255);
-      }
-      // If no vibrator available, silently continue (no vibration)
-    } catch (e) {
-      // If vibration fails for any reason, silently continue
-      // This prevents crashes on platforms that don't support vibration
-    }
+  void _vibrateStrong() {
+    HapticFeedback.mediumImpact();
   }
 }

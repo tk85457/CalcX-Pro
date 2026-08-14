@@ -62,7 +62,9 @@ class _NavigationDrawerWidgetState extends State<NavigationDrawerWidget>
         title: 'Scientific Calculator',
         onTap: () {
           Navigator.of(context).pop();
-          context.read<CalculatorProvider>().setCalculatorTypeAndClear('scientific');
+          context
+              .read<CalculatorProvider>()
+              .setCalculatorTypeAndClear('scientific');
         },
       ),
       _MenuItem(
@@ -70,7 +72,9 @@ class _NavigationDrawerWidgetState extends State<NavigationDrawerWidget>
         title: 'Advanced Calculator',
         onTap: () {
           Navigator.of(context).pop();
-          context.read<CalculatorProvider>().setCalculatorTypeAndClear('advanced');
+          context
+              .read<CalculatorProvider>()
+              .setCalculatorTypeAndClear('advanced');
         },
       ),
       null, // Divider
@@ -80,7 +84,8 @@ class _NavigationDrawerWidgetState extends State<NavigationDrawerWidget>
         onTap: () {
           Navigator.of(context).pop();
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const EMICalculatorScreen()),
+            MaterialPageRoute(
+                builder: (context) => const EMICalculatorScreen()),
           );
         },
       ),
@@ -90,7 +95,8 @@ class _NavigationDrawerWidgetState extends State<NavigationDrawerWidget>
         onTap: () {
           Navigator.of(context).pop();
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const GSTCalculatorScreen()),
+            MaterialPageRoute(
+                builder: (context) => const GSTCalculatorScreen()),
           );
         },
       ),
@@ -100,7 +106,8 @@ class _NavigationDrawerWidgetState extends State<NavigationDrawerWidget>
         onTap: () {
           Navigator.of(context).pop();
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const UnitConverterScreen()),
+            MaterialPageRoute(
+                builder: (context) => const UnitConverterScreen()),
           );
         },
       ),
@@ -110,7 +117,8 @@ class _NavigationDrawerWidgetState extends State<NavigationDrawerWidget>
         onTap: () {
           Navigator.of(context).pop();
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const CurrencyConverterScreen()),
+            MaterialPageRoute(
+                builder: (context) => const CurrencyConverterScreen()),
           );
         },
       ),
@@ -120,7 +128,8 @@ class _NavigationDrawerWidgetState extends State<NavigationDrawerWidget>
         onTap: () {
           Navigator.of(context).pop();
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const TaxCalculatorScreen()),
+            MaterialPageRoute(
+                builder: (context) => const TaxCalculatorScreen()),
           );
         },
       ),
@@ -130,7 +139,8 @@ class _NavigationDrawerWidgetState extends State<NavigationDrawerWidget>
         onTap: () {
           Navigator.of(context).pop();
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const BMICalculatorScreen()),
+            MaterialPageRoute(
+                builder: (context) => const BMICalculatorScreen()),
           );
         },
       ),
@@ -187,7 +197,9 @@ class _NavigationDrawerWidgetState extends State<NavigationDrawerWidget>
 
                     double progress = 0.0;
                     if (_animation.value > staggerDelay) {
-                      progress = ((_animation.value - staggerDelay) / (staggerEnd - staggerDelay)).clamp(0.0, 1.0);
+                      progress = ((_animation.value - staggerDelay) /
+                              (staggerEnd - staggerDelay))
+                          .clamp(0.0, 1.0);
                     }
 
                     if (item == null) {
@@ -242,7 +254,6 @@ class _AnimatedDrawerHeader extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      height: 180,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment(-1 + animation.value * 0.3, -1),
@@ -294,7 +305,7 @@ class _AnimatedDrawerHeader extends StatelessWidget {
                       'assets/images/icon/app_icon.png',
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
-                        return Icon(
+                        return const Icon(
                           Icons.calculate_rounded,
                           size: 36,
                           color: Colors.white,
@@ -305,45 +316,42 @@ class _AnimatedDrawerHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              Flexible(
-                child: Transform.translate(
-                  offset: Offset(-30 * (1 - animation.value), 0),
-                  child: Opacity(
-                    opacity: animation.value,
-                    child: const Text(
-                      'CalcX Pro',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+              Transform.translate(
+                offset: Offset(-30 * (1 - animation.value), 0),
+                child: Opacity(
+                  opacity: animation.value,
+                  child: const Text(
+                    'CalcX Pro',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
               const SizedBox(height: 4),
-              Flexible(
-                child: Transform.translate(
-                  offset: Offset(-30 * (1 - animation.value * 0.8), 0),
-                  child: Opacity(
-                    opacity: animation.value * 0.8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
+              Transform.translate(
+                offset: Offset(-30 * (1 - animation.value * 0.8), 0),
+                child: Opacity(
+                  opacity: animation.value * 0.8,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      '✨ Premium Calculator',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
                       ),
-                      child: const Text(
-                        '✨ Premium Calculator',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
@@ -461,4 +469,3 @@ class _AnimatedMenuItemState extends State<_AnimatedMenuItem>
     );
   }
 }
-
