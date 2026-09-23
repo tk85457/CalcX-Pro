@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/history_provider.dart';
@@ -15,6 +16,7 @@ class _UnitConverterScreenState extends State<UnitConverterScreen> {
   String _toUnit = 'Kilometer';
   final _inputController = TextEditingController();
   double _result = 0;
+  Timer? _historyTimer;
 
   final Map<String, Map<String, double>> _conversionFactors = {
     'Length': {
@@ -148,6 +150,7 @@ class _UnitConverterScreenState extends State<UnitConverterScreen> {
 
   void _convert() {
     if (_inputController.text.isEmpty) {
+      _historyTimer?.cancel();
       setState(() => _result = 0);
       return;
     }
@@ -163,9 +166,18 @@ class _UnitConverterScreenState extends State<UnitConverterScreen> {
     }
 
     if (_inputController.text.isNotEmpty) {
-      _saveToHistory();
+      _debounceSaveToHistory();
     }
     setState(() {});
+  }
+
+  void _debounceSaveToHistory() {
+    _historyTimer?.cancel();
+    _historyTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted && _inputController.text.isNotEmpty) {
+        _saveToHistory();
+      }
+    });
   }
 
   double _convertTemperature(double value, String from, String to) {
@@ -349,6 +361,7 @@ class _UnitConverterScreenState extends State<UnitConverterScreen> {
   }
 
   void _saveToHistory() {
+    if (!mounted || _inputController.text.isEmpty || _result == 0) return;
     final historyProvider = context.read<HistoryProvider>();
     final expression = '${_inputController.text} $_fromUnit';
     final result = '${_result.toStringAsFixed(4)} $_toUnit';
@@ -357,6 +370,7 @@ class _UnitConverterScreenState extends State<UnitConverterScreen> {
 
   @override
   void dispose() {
+    _historyTimer?.cancel();
     _inputController.dispose();
     super.dispose();
   }

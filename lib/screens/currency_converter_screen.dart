@@ -14,7 +14,10 @@ class CurrencyConverterScreen extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: const SingleChildScrollView(child: CurrencyConverterWidget()),
+      body: const SafeArea(
+        top: false,
+        child: SingleChildScrollView(child: CurrencyConverterWidget()),
+      ),
     );
   }
 }

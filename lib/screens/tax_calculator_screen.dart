@@ -34,6 +34,11 @@ class _TaxCalculatorScreenState extends State<TaxCalculatorScreen> {
           return;
         }
 
+        if (income <= 0) {
+          _showErrorDialog('Income must be greater than 0');
+          return;
+        }
+
         if (income.isInfinite || income.isNaN) {
           _showErrorDialog('Income value is invalid');
           return;
@@ -103,6 +108,7 @@ class _TaxCalculatorScreenState extends State<TaxCalculatorScreen> {
         foregroundColor: Theme.of(context).colorScheme.primary,
       ),
       body: SafeArea(
+        top: false,
         child: SingleChildScrollView(
           padding: EdgeInsets.only(
             left: 16.0,

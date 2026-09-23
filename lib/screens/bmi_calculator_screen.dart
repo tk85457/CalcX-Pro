@@ -115,9 +115,11 @@ class _BMICalculatorScreenState extends State<BMICalculatorScreen> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         foregroundColor: Theme.of(context).colorScheme.primary,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
           children: [
             Card(
               elevation: 4,
@@ -228,6 +230,7 @@ class _BMICalculatorScreenState extends State<BMICalculatorScreen> {
               ),
           ],
         ),
+      ),
       ),
     );
   }

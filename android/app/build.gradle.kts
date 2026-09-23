@@ -30,7 +30,7 @@ android {
     defaultConfig {
         applicationId = "com.tk854.calcxpro"
         minSdk = flutter.minSdkVersion
-        targetSdk = 35
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -69,4 +69,8 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.15.0")
 }

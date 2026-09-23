@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/calculator_utils.dart';
@@ -10,30 +10,36 @@ class CalculatorProvider extends ChangeNotifier {
   // Separate state for each calculator type to prevent sharing
   String _basicDisplay = '';
   String _basicExpression = '';
+  String _basicPreviousExpression = '';
   bool _basicIsResult = false;
   String _basicAutoCalculatedResult = '';
   String _basicLastValidResult = '';
 
   String _scientificDisplay = '';
   String _scientificExpression = '';
+  String _scientificPreviousExpression = '';
   bool _scientificIsResult = false;
   String _scientificAutoCalculatedResult = '';
   String _scientificLastValidResult = '';
 
   String _advancedDisplay = '';
   String _advancedExpression = '';
+  String _advancedPreviousExpression = '';
   bool _advancedIsResult = false;
   String _advancedAutoCalculatedResult = '';
   String _advancedLastValidResult = '';
 
   String _calculatorType = 'basic';
+  bool _isRadian = false;
   HistoryProvider? _historyProvider;
 
   // Getters for current calculator type
   String get display => _getCurrentDisplay();
   String get expression => _getCurrentExpression();
+  String get previousExpression => _getCurrentPreviousExpression();
   bool get isResult => _getCurrentIsResult();
   String get calculatorType => _calculatorType;
+  bool get isRadian => _isRadian;
   bool get autoCalculate => shouldAutoCalculate;
   bool get shouldAutoCalculate =>
       _autoCalculate &&
@@ -42,6 +48,14 @@ class CalculatorProvider extends ChangeNotifier {
           _calculatorType == 'advanced');
   String get autoCalculatedResult => _getCurrentAutoCalculatedResult();
   String get lastValidResult => _getCurrentLastValidResult();
+
+  void toggleAngleUnit() {
+    _isRadian = !_isRadian;
+    if (shouldAutoCalculate) {
+      _tryAutoCalculate();
+    }
+    notifyListeners();
+  }
 
   // Helper methods to get current values
   String _getCurrentDisplay() {
@@ -65,6 +79,19 @@ class CalculatorProvider extends ChangeNotifier {
         return _scientificExpression;
       case 'advanced':
         return _advancedExpression;
+      default:
+        return '';
+    }
+  }
+
+  String _getCurrentPreviousExpression() {
+    switch (_calculatorType) {
+      case 'basic':
+        return _basicPreviousExpression;
+      case 'scientific':
+        return _scientificPreviousExpression;
+      case 'advanced':
+        return _advancedPreviousExpression;
       default:
         return '';
     }
@@ -122,7 +149,6 @@ class CalculatorProvider extends ChangeNotifier {
   }
 
   bool _autoCalculate = true;
-  bool _isBackspacing = false;
   Timer? _deleteTimer;
   String _errorMessage = '';
   final bool _buttonsLocked = false;
@@ -159,6 +185,17 @@ class CalculatorProvider extends ChangeNotifier {
         // Start new calculation
         currentDisplay = '';
         _cursorPosition = 0;
+        switch (_calculatorType) {
+          case 'basic':
+            _basicPreviousExpression = '';
+            break;
+          case 'scientific':
+            _scientificPreviousExpression = '';
+            break;
+          case 'advanced':
+            _advancedPreviousExpression = '';
+            break;
+        }
       }
 
       switch (_calculatorType) {
@@ -209,53 +246,26 @@ class CalculatorProvider extends ChangeNotifier {
   }
 
   void _tryAutoCalculate() {
-    try {
-      final currentExpression = expression;
-      if (currentExpression.trim().isNotEmpty &&
-          CalculatorUtils.isExpressionComplete(currentExpression) &&
-          RegExp(r'\d').hasMatch(currentExpression)) {
-        final result = CalculatorUtils.evaluateExpression(currentExpression);
-        switch (_calculatorType) {
-          case 'basic':
-            _basicAutoCalculatedResult = CalculatorUtils.formatResult(result);
-            _basicLastValidResult = _basicAutoCalculatedResult;
-            break;
-          case 'scientific':
-            _scientificAutoCalculatedResult =
-                CalculatorUtils.formatResult(result);
-            _scientificLastValidResult = _scientificAutoCalculatedResult;
-            break;
-          case 'advanced':
-            _advancedAutoCalculatedResult =
-                CalculatorUtils.formatResult(result);
-            _advancedLastValidResult = _advancedAutoCalculatedResult;
-            break;
-        }
-      } else {
-        switch (_calculatorType) {
-          case 'basic':
-            _basicAutoCalculatedResult = '';
-            break;
-          case 'scientific':
-            _scientificAutoCalculatedResult = '';
-            break;
-          case 'advanced':
-            _advancedAutoCalculatedResult = '';
-            break;
-        }
-      }
-    } catch (_) {
-      switch (_calculatorType) {
-        case 'basic':
-          _basicAutoCalculatedResult = '';
-          break;
-        case 'scientific':
-          _scientificAutoCalculatedResult = '';
-          break;
-        case 'advanced':
-          _advancedAutoCalculatedResult = '';
-          break;
-      }
+    final currentExpression = expression;
+    final preview = CalculatorUtils.getAutoCalculationPreview(
+      currentExpression,
+      isRadian: _isRadian,
+    );
+    final val = preview ?? '';
+
+    switch (_calculatorType) {
+      case 'basic':
+        _basicAutoCalculatedResult = val;
+        if (val.isNotEmpty) _basicLastValidResult = val;
+        break;
+      case 'scientific':
+        _scientificAutoCalculatedResult = val;
+        if (val.isNotEmpty) _scientificLastValidResult = val;
+        break;
+      case 'advanced':
+        _advancedAutoCalculatedResult = val;
+        if (val.isNotEmpty) _advancedLastValidResult = val;
+        break;
     }
   }
 
@@ -394,27 +404,25 @@ class CalculatorProvider extends ChangeNotifier {
   void calculate() {
     try {
       final currentExpression = expression;
-      final currentDisplay = display;
-
       if (currentExpression.isEmpty) return;
 
-      // Auto-close brackets
-      int openBrackets = '('.allMatches(currentExpression).length;
-      int closeBrackets = ')'.allMatches(currentExpression).length;
-      if (openBrackets > closeBrackets) {
-        _updateDisplayAndExpression('$currentDisplay)');
+      // Auto-close all unclosed brackets
+      final balanced = CalculatorUtils.autoCloseBrackets(currentExpression);
+      if (balanced != currentExpression) {
+        _updateDisplayAndExpression(balanced);
       }
 
-      if (!CalculatorUtils.isExpressionComplete(expression)) {
+      if (!CalculatorUtils.isExpressionComplete(balanced)) {
         _setErrorState();
         return;
       }
 
-      final originalExpression = expression;
-      final result = CalculatorUtils.evaluateExpression(expression);
+      final originalExpression = balanced;
+      final result =
+          CalculatorUtils.evaluateExpression(balanced, isRadian: _isRadian);
       final formattedResult = CalculatorUtils.formatResult(result);
 
-      _setResultState(formattedResult);
+      _setResultState(formattedResult, previousExpr: originalExpression);
       _saveToHistory(originalExpression, formattedResult);
       _moveCursorToEnd();
     } catch (e) {
@@ -422,7 +430,22 @@ class CalculatorProvider extends ChangeNotifier {
     }
   }
 
+  void _setPreviousExpression(String expr) {
+    switch (_calculatorType) {
+      case 'basic':
+        _basicPreviousExpression = expr;
+        break;
+      case 'scientific':
+        _scientificPreviousExpression = expr;
+        break;
+      case 'advanced':
+        _advancedPreviousExpression = expr;
+        break;
+    }
+  }
+
   void _setErrorState() {
+    _setPreviousExpression('');
     switch (_calculatorType) {
       case 'basic':
         _basicDisplay = 'Error';
@@ -441,7 +464,8 @@ class CalculatorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _setResultState(String result) {
+  void _setResultState(String result, {String previousExpr = ''}) {
+    _setPreviousExpression(previousExpr);
     switch (_calculatorType) {
       case 'basic':
         _basicDisplay = result;
@@ -465,6 +489,7 @@ class CalculatorProvider extends ChangeNotifier {
   }
 
   void _handleCalculationError(Object e) {
+    _setPreviousExpression('');
     String errorMessage = 'Error';
     final errorString = e.toString().toLowerCase();
     if (errorString.contains('undefined')) {
@@ -503,6 +528,7 @@ class CalculatorProvider extends ChangeNotifier {
       case 'basic':
         _basicDisplay = '';
         _basicExpression = '';
+        _basicPreviousExpression = '';
         _basicIsResult = false;
         _basicAutoCalculatedResult = '';
         _basicLastValidResult = '';
@@ -510,6 +536,7 @@ class CalculatorProvider extends ChangeNotifier {
       case 'scientific':
         _scientificDisplay = '';
         _scientificExpression = '';
+        _scientificPreviousExpression = '';
         _scientificIsResult = false;
         _scientificAutoCalculatedResult = '';
         _scientificLastValidResult = '';
@@ -517,6 +544,7 @@ class CalculatorProvider extends ChangeNotifier {
       case 'advanced':
         _advancedDisplay = '';
         _advancedExpression = '';
+        _advancedPreviousExpression = '';
         _advancedIsResult = false;
         _advancedAutoCalculatedResult = '';
         _advancedLastValidResult = '';
@@ -604,14 +632,7 @@ class CalculatorProvider extends ChangeNotifier {
         .contains(function)) {
       _insertText('$function(');
     } else if (function == '√' || function == '∛') {
-      final currentDisplay = display;
-      if (currentDisplay.isEmpty || currentDisplay == 'Error') {
-        _insertText('$function(');
-      } else {
-        final nextVal = '$function($currentDisplay';
-        _updateDisplayAndExpression(nextVal);
-        _moveCursorToEnd();
-      }
+      _insertText('$function(');
     } else if (['10ˣ', 'eˣ'].contains(function)) {
       _insertText('$function(');
     } else if (function == 'x²' || function == 'x³') {
@@ -735,7 +756,6 @@ class CalculatorProvider extends ChangeNotifier {
     final currentDisplay = display;
     if (currentDisplay == 'Error') {
       clear();
-      _isBackspacing = false;
       return;
     }
 
@@ -831,6 +851,8 @@ class CalculatorProvider extends ChangeNotifier {
       addDecimal();
     } else if (value == '=') {
       calculate();
+    } else if (value == 'DEG' || value == 'RAD') {
+      toggleAngleUnit();
     }
   }
 

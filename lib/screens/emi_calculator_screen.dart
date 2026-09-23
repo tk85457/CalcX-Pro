@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -14,35 +15,68 @@ class _EMICalculatorScreenState extends State<EMICalculatorScreen> {
   final _principalController = TextEditingController();
   final _rateController = TextEditingController();
   final _tenureController = TextEditingController();
+  Timer? _historyTimer;
 
   double _emi = 0;
   double _totalAmount = 0;
   double _totalInterest = 0;
 
   void _calculateEMI() {
-    final principal = double.tryParse(_principalController.text) ?? 0;
-    final rate = double.tryParse(_rateController.text) ?? 0;
-    final tenure = int.tryParse(_tenureController.text) ?? 0;
+    final principal = double.tryParse(_principalController.text);
+    final rate = double.tryParse(_rateController.text);
+    final tenure = int.tryParse(_tenureController.text);
 
-    if (principal > 0 && rate > 0 && tenure > 0) {
-      // Monthly interest rate
-      final monthlyRate = rate / 12 / 100;
+    if (principal != null &&
+        principal > 0 &&
+        rate != null &&
+        rate >= 0 &&
+        tenure != null &&
+        tenure > 0) {
+      double emi;
+      double totalAmount;
+      double totalInterest;
 
-      // EMI formula: [P × R × (1+R)^N] / [(1+R)^N − 1]
-      final emi =
-          (principal * monthlyRate * pow(1 + monthlyRate, tenure)) /
-          (pow(1 + monthlyRate, tenure) - 1);
+      if (rate == 0) {
+        emi = principal / tenure;
+        totalAmount = principal;
+        totalInterest = 0;
+      } else {
+        // Monthly interest rate
+        final monthlyRate = rate / 12 / 100;
 
-      final totalAmount = emi * tenure;
-      final totalInterest = totalAmount - principal;
+        // EMI formula: [P × R × (1+R)^N] / [(1+R)^N − 1]
+        emi =
+            (principal * monthlyRate * pow(1 + monthlyRate, tenure)) /
+            (pow(1 + monthlyRate, tenure) - 1);
+
+        totalAmount = emi * tenure;
+        totalInterest = totalAmount - principal;
+      }
 
       setState(() {
         _emi = emi;
         _totalAmount = totalAmount;
         _totalInterest = totalInterest;
-        _saveToHistory();
       });
+      _debounceSaveToHistory();
+    } else {
+      if (_emi != 0 || _totalAmount != 0 || _totalInterest != 0) {
+        setState(() {
+          _emi = 0;
+          _totalAmount = 0;
+          _totalInterest = 0;
+        });
+      }
     }
+  }
+
+  void _debounceSaveToHistory() {
+    _historyTimer?.cancel();
+    _historyTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted && _emi > 0) {
+        _saveToHistory();
+      }
+    });
   }
 
   @override
@@ -55,76 +89,79 @@ class _EMICalculatorScreenState extends State<EMICalculatorScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _principalController,
-                      decoration: const InputDecoration(
-                        labelText: 'Principal Amount (₹)',
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      onChanged: (_) => _calculateEMI(),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _rateController,
-                      decoration: const InputDecoration(
-                        labelText: 'Annual Interest Rate (%)',
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      onChanged: (_) => _calculateEMI(),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _tenureController,
-                      decoration: const InputDecoration(
-                        labelText: 'Tenure (Months)',
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      onChanged: (_) => _calculateEMI(),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            if (_emi > 0) ...[
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      _buildResultRow(
-                        'Monthly EMI',
-                        '₹${_emi.toStringAsFixed(2)}',
+                      TextField(
+                        controller: _principalController,
+                        decoration: const InputDecoration(
+                          labelText: 'Principal Amount (₹)',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => _calculateEMI(),
                       ),
-                      const Divider(),
-                      _buildResultRow(
-                        'Total Amount',
-                        '₹${_totalAmount.toStringAsFixed(2)}',
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _rateController,
+                        decoration: const InputDecoration(
+                          labelText: 'Annual Interest Rate (%)',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => _calculateEMI(),
                       ),
-                      const Divider(),
-                      _buildResultRow(
-                        'Total Interest',
-                        '₹${_totalInterest.toStringAsFixed(2)}',
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _tenureController,
+                        decoration: const InputDecoration(
+                          labelText: 'Tenure (Months)',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => _calculateEMI(),
                       ),
                     ],
                   ),
                 ),
               ),
+              const SizedBox(height: 24),
+              if (_emi > 0) ...[
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _buildResultRow(
+                          'Monthly EMI',
+                          '₹${_emi.toStringAsFixed(2)}',
+                        ),
+                        const Divider(),
+                        _buildResultRow(
+                          'Total Amount',
+                          '₹${_totalAmount.toStringAsFixed(2)}',
+                        ),
+                        const Divider(),
+                        _buildResultRow(
+                          'Total Interest',
+                          '₹${_totalInterest.toStringAsFixed(2)}',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -157,6 +194,7 @@ class _EMICalculatorScreenState extends State<EMICalculatorScreen> {
 
   @override
   void dispose() {
+    _historyTimer?.cancel();
     _principalController.dispose();
     _rateController.dispose();
     _tenureController.dispose();

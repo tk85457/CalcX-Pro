@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../utils/constants.dart';
@@ -14,6 +15,7 @@ class _GSTCalculatorScreenState extends State<GSTCalculatorScreen> {
   final _amountController = TextEditingController();
   double _selectedRate = 18.0;
   bool _isAddGST = true; // true for Add GST, false for Remove GST
+  Timer? _historyTimer;
 
   double _result = 0;
 
@@ -31,10 +33,22 @@ class _GSTCalculatorScreenState extends State<GSTCalculatorScreen> {
         _result = amount / (1 + _selectedRate / 100);
       }
 
-      setState(() {
-        _saveToHistory();
-      });
+      setState(() {});
+      _debounceSaveToHistory();
+    } else {
+      if (_result != 0) {
+        setState(() => _result = 0);
+      }
     }
+  }
+
+  void _debounceSaveToHistory() {
+    _historyTimer?.cancel();
+    _historyTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted && _result > 0) {
+        _saveToHistory();
+      }
+    });
   }
 
   @override
@@ -47,99 +61,102 @@ class _GSTCalculatorScreenState extends State<GSTCalculatorScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _amountController,
-                      decoration: InputDecoration(
-                        labelText:
-                            _isAddGST ? 'Amount (₹)' : 'Amount with GST (₹)',
-                        border: const OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      onChanged: (_) => _calculateGST(),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        const Text('GST Rate:'),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: DropdownButtonFormField<double>(
-                            initialValue: _selectedRate,
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
-                            ),
-                            items: AppConstants.gstRates.map((rate) {
-                              return DropdownMenuItem(
-                                value: rate,
-                                child: Text('${rate.toStringAsFixed(0)}%'),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() => _selectedRate = value);
-                                _calculateGST();
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: true, label: Text('Add GST')),
-                        ButtonSegment(value: false, label: Text('Remove GST')),
-                      ],
-                      selected: {_isAddGST},
-                      onSelectionChanged: (selected) {
-                        setState(() => _isAddGST = selected.first);
-                        _calculateGST();
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            if (_result > 0) ...[
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      _buildResultRow(
-                        _isAddGST ? 'Amount with GST' : 'Original Amount',
-                        '₹${_result.toStringAsFixed(2)}',
+                      TextField(
+                        controller: _amountController,
+                        decoration: InputDecoration(
+                          labelText:
+                              _isAddGST ? 'Amount (₹)' : 'Amount with GST (₹)',
+                          border: const OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => _calculateGST(),
                       ),
-                      if (_isAddGST) ...[
-                        const Divider(),
-                        _buildResultRow(
-                          'GST Amount',
-                          '₹${((_result - (double.tryParse(_amountController.text) ?? 0))).toStringAsFixed(2)}',
-                        ),
-                      ] else ...[
-                        const Divider(),
-                        _buildResultRow(
-                          'GST Amount',
-                          '₹${((double.tryParse(_amountController.text) ?? 0) - _result).toStringAsFixed(2)}',
-                        ),
-                      ],
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Text('GST Rate:'),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: DropdownButtonFormField<double>(
+                              initialValue: _selectedRate,
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                              ),
+                              items: AppConstants.gstRates.map((rate) {
+                                return DropdownMenuItem(
+                                  value: rate,
+                                  child: Text('${rate.toStringAsFixed(0)}%'),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setState(() => _selectedRate = value);
+                                  _calculateGST();
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      SegmentedButton<bool>(
+                        segments: const [
+                          ButtonSegment(value: true, label: Text('Add GST')),
+                          ButtonSegment(value: false, label: Text('Remove GST')),
+                        ],
+                        selected: {_isAddGST},
+                        onSelectionChanged: (selected) {
+                          setState(() => _isAddGST = selected.first);
+                          _calculateGST();
+                        },
+                      ),
                     ],
                   ),
                 ),
               ),
+              const SizedBox(height: 24),
+              if (_result > 0) ...[
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _buildResultRow(
+                          _isAddGST ? 'Amount with GST' : 'Original Amount',
+                          '₹${_result.toStringAsFixed(2)}',
+                        ),
+                        if (_isAddGST) ...[
+                          const Divider(),
+                          _buildResultRow(
+                            'GST Amount',
+                            '₹${((_result - (double.tryParse(_amountController.text) ?? 0))).toStringAsFixed(2)}',
+                          ),
+                        ] else ...[
+                          const Divider(),
+                          _buildResultRow(
+                            'GST Amount',
+                            '₹${((double.tryParse(_amountController.text) ?? 0) - _result).toStringAsFixed(2)}',
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -174,6 +191,7 @@ class _GSTCalculatorScreenState extends State<GSTCalculatorScreen> {
 
   @override
   void dispose() {
+    _historyTimer?.cancel();
     _amountController.dispose();
     super.dispose();
   }

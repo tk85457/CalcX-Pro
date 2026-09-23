@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/history_provider.dart';
@@ -14,6 +15,7 @@ class _PercentageCalculatorScreenState
     extends State<PercentageCalculatorScreen> {
   final _value1Controller = TextEditingController();
   final _value2Controller = TextEditingController();
+  Timer? _historyTimer;
 
   String _selectedCalculation = 'percentage_of';
   double _result = 0;
@@ -24,6 +26,7 @@ class _PercentageCalculatorScreenState
     final value2 = double.tryParse(_value2Controller.text) ?? 0;
 
     if (value1 == 0 && value2 == 0) {
+      _historyTimer?.cancel();
       setState(() {
         _result = 0;
         _resultText = '';
@@ -72,7 +75,19 @@ class _PercentageCalculatorScreenState
     setState(() {
       _result = result;
       _resultText = resultText;
-      _saveToHistory(resultText);
+    });
+    _debounceSaveToHistory(resultText);
+  }
+
+  void _debounceSaveToHistory(String result) {
+    _historyTimer?.cancel();
+    _historyTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted &&
+          _resultText == result &&
+          result.isNotEmpty &&
+          !result.startsWith('Cannot')) {
+        _saveToHistory(result);
+      }
     });
   }
 
@@ -86,7 +101,9 @@ class _PercentageCalculatorScreenState
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: SingleChildScrollView(
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -200,6 +217,7 @@ class _PercentageCalculatorScreenState
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -239,6 +257,7 @@ class _PercentageCalculatorScreenState
 
   @override
   void dispose() {
+    _historyTimer?.cancel();
     _value1Controller.dispose();
     _value2Controller.dispose();
     super.dispose();

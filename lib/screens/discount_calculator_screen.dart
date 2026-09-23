@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/history_provider.dart';
@@ -13,6 +14,7 @@ class DiscountCalculatorScreen extends StatefulWidget {
 class _DiscountCalculatorScreenState extends State<DiscountCalculatorScreen> {
   final _originalPriceController = TextEditingController();
   final _discountPercentController = TextEditingController();
+  Timer? _historyTimer;
 
   double _discountAmount = 0;
   double _finalPrice = 0;
@@ -29,9 +31,25 @@ class _DiscountCalculatorScreenState extends State<DiscountCalculatorScreen> {
       setState(() {
         _discountAmount = discountAmount;
         _finalPrice = finalPrice;
-        _saveToHistory();
       });
+      _debounceSaveToHistory();
+    } else {
+      if (_finalPrice != 0 || _discountAmount != 0) {
+        setState(() {
+          _discountAmount = 0;
+          _finalPrice = 0;
+        });
+      }
     }
+  }
+
+  void _debounceSaveToHistory() {
+    _historyTimer?.cancel();
+    _historyTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted && _finalPrice > 0) {
+        _saveToHistory();
+      }
+    });
   }
 
   @override
@@ -44,66 +62,69 @@ class _DiscountCalculatorScreenState extends State<DiscountCalculatorScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _originalPriceController,
-                      decoration: const InputDecoration(
-                        labelText: 'Original Price (₹)',
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      onChanged: (_) => _calculateDiscount(),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _discountPercentController,
-                      decoration: const InputDecoration(
-                        labelText: 'Discount Percentage (%)',
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      onChanged: (_) => _calculateDiscount(),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            if (_finalPrice > 0) ...[
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      _buildResultRow(
-                        'Original Price',
-                        '₹${(double.tryParse(_originalPriceController.text) ?? 0).toStringAsFixed(2)}',
+                      TextField(
+                        controller: _originalPriceController,
+                        decoration: const InputDecoration(
+                          labelText: 'Original Price (₹)',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => _calculateDiscount(),
                       ),
-                      const Divider(),
-                      _buildResultRow(
-                        'Discount Amount',
-                        '₹${_discountAmount.toStringAsFixed(2)}',
-                      ),
-                      const Divider(),
-                      _buildResultRow(
-                        'Final Price',
-                        '₹${_finalPrice.toStringAsFixed(2)}',
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _discountPercentController,
+                        decoration: const InputDecoration(
+                          labelText: 'Discount Percentage (%)',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => _calculateDiscount(),
                       ),
                     ],
                   ),
                 ),
               ),
+              const SizedBox(height: 24),
+              if (_finalPrice > 0) ...[
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _buildResultRow(
+                          'Original Price',
+                          '₹${(double.tryParse(_originalPriceController.text) ?? 0).toStringAsFixed(2)}',
+                        ),
+                        const Divider(),
+                        _buildResultRow(
+                          'Discount Amount',
+                          '₹${_discountAmount.toStringAsFixed(2)}',
+                        ),
+                        const Divider(),
+                        _buildResultRow(
+                          'Final Price',
+                          '₹${_finalPrice.toStringAsFixed(2)}',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -117,9 +138,9 @@ class _DiscountCalculatorScreenState extends State<DiscountCalculatorScreen> {
         Text(
           value,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.primary,
-          ),
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
         ),
       ],
     );
@@ -136,6 +157,7 @@ class _DiscountCalculatorScreenState extends State<DiscountCalculatorScreen> {
 
   @override
   void dispose() {
+    _historyTimer?.cancel();
     _originalPriceController.dispose();
     _discountPercentController.dispose();
     super.dispose();

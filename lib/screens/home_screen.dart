@@ -25,60 +25,22 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late TabController _tabController;
   bool _isUserTabChange = false;
-  Timer? _navBarHideTimer;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_onTabChanged);
-
-    // Hide nav bar immediately when screen opens
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _hideNavBar();
-    });
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _navBarHideTimer?.cancel();
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
-  }
-
-  // Re-hide nav bar when app comes back to foreground
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _hideNavBar();
-    }
-  }
-
-  // Called when system UI visibility changes (user swipes nav bar out)
-  @override
-  void didChangeMetrics() {
-    // Start 1-second timer to re-hide nav bar after user reveals it
-    _scheduleNavBarHide();
-  }
-
-  void _hideNavBar() {
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.immersiveSticky,
-    );
-  }
-
-  void _scheduleNavBarHide() {
-    _navBarHideTimer?.cancel();
-    _navBarHideTimer = Timer(const Duration(milliseconds: 1000), () {
-      if (mounted) _hideNavBar();
-    });
   }
 
   void _onTabChanged() {
@@ -91,10 +53,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<CalculatorProvider>(
-      builder: (context, calculator, child) {
+    return Selector<CalculatorProvider, String>(
+      selector: (_, calc) => calc.currentCalculatorType,
+      builder: (context, currentCalculatorType, child) {
         int tabIndex = 0;
-        switch (calculator.currentCalculatorType) {
+        switch (currentCalculatorType) {
           case 'basic':
             tabIndex = 0;
             break;
@@ -117,29 +80,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
 
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
             statusBarIconBrightness:
                 Theme.of(context).brightness == Brightness.dark
                     ? Brightness.light
                     : Brightness.dark,
-            systemNavigationBarColor: Colors.transparent,
-            systemNavigationBarDividerColor: Colors.transparent,
+            systemNavigationBarIconBrightness:
+                Theme.of(context).brightness == Brightness.dark
+                    ? Brightness.light
+                    : Brightness.dark,
           ),
           child: Scaffold(
             appBar: AppBar(
               title: const Text('CalcX Pro'),
               backgroundColor: Theme.of(context).colorScheme.primary,
               foregroundColor: Theme.of(context).colorScheme.onPrimary,
-              leading: (calculator.currentCalculatorType != 'basic' &&
-                      calculator.currentCalculatorType != 'scientific' &&
-                      calculator.currentCalculatorType != 'advanced')
+              leading: (currentCalculatorType != 'basic' &&
+                      currentCalculatorType != 'scientific' &&
+                      currentCalculatorType != 'advanced')
                   ? IconButton(
                       icon: Icon(
                         Icons.arrow_back,
                         color: Theme.of(context).colorScheme.onPrimary,
                       ),
-                      onPressed: () =>
-                          calculator.setCalculatorTypeAndClear('basic'),
+                      onPressed: () => context
+                          .read<CalculatorProvider>()
+                          .setCalculatorTypeAndClear('basic'),
                     )
                   : Builder(
                       builder: (context) => IconButton(
@@ -151,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                       ),
                     ),
               actions: [
-                if (calculator.currentCalculatorType != 'advanced')
+                if (currentCalculatorType != 'advanced')
                   Builder(
                     builder: (context) => IconButton(
                       icon: Icon(
@@ -216,22 +181,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                       type = 'advanced';
                       break;
                   }
-                  calculator.setCalculatorType(type);
+                  context.read<CalculatorProvider>().setCalculatorType(type);
                 },
               ),
             ),
             drawer: const NavigationDrawerWidget(),
-            endDrawer: calculator.currentCalculatorType != 'advanced'
+            endDrawer: currentCalculatorType != 'advanced'
                 ? const HistoryDrawer()
                 : null,
-            body: TabBarView(
-              controller: _tabController,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _buildBasicCalculator(),
-                _buildScientificCalculator(),
-                _buildAdvancedCalculator(),
-              ],
+            body: SafeArea(
+              top: false,
+              child: TabBarView(
+                controller: _tabController,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _buildBasicCalculator(),
+                  _buildScientificCalculator(),
+                  _buildAdvancedCalculator(),
+                ],
+              ),
             ),
           ),
         );
@@ -240,54 +208,44 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   }
 
   Widget _buildBasicCalculator() {
-    return Consumer<CalculatorProvider>(
-      builder: (context, calculator, child) {
-        return Column(
-          children: [
-            const Expanded(
-                flex: 2,
-                child: CalculatorDisplay(key: ValueKey('basic_display'))),
-            Expanded(
-              flex: 5,
-              child: CalculatorButtons(
-                key: const ValueKey('basic_buttons'),
-                calculator: calculator,
-                calculatorType: 'basic',
-              ),
-            ),
-          ],
-        );
-      },
+    return Column(
+      children: [
+        const Expanded(
+            flex: 2,
+            child: CalculatorDisplay(key: ValueKey('basic_display'))),
+        Expanded(
+          flex: 5,
+          child: CalculatorButtons(
+            key: const ValueKey('basic_buttons'),
+            calculator: context.read<CalculatorProvider>(),
+            calculatorType: 'basic',
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildScientificCalculator() {
-    return Consumer<CalculatorProvider>(
-      builder: (context, calculator, child) {
-        return Column(
-          children: [
-            const Expanded(
-                flex: 2,
-                child:
-                    CalculatorDisplay(key: ValueKey('scientific_display'))),
-            Expanded(
-              flex: 5,
-              child: CalculatorButtons(
-                key: const ValueKey('scientific_buttons'),
-                calculator: calculator,
-                calculatorType: 'scientific',
-              ),
-            ),
-          ],
-        );
-      },
+    return Column(
+      children: [
+        const Expanded(
+            flex: 2,
+            child:
+                CalculatorDisplay(key: ValueKey('scientific_display'))),
+        Expanded(
+          flex: 5,
+          child: CalculatorButtons(
+            key: const ValueKey('scientific_buttons'),
+            calculator: context.read<CalculatorProvider>(),
+            calculatorType: 'scientific',
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildAdvancedCalculator() {
-    return Consumer<CalculatorProvider>(
-      builder: (context, calculator, child) {
-        return _AnimatedTileGrid(
+    return _AnimatedTileGrid(
           tiles: [
             _TileData(
               icon: Icons.science,
@@ -341,8 +299,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
             ),
           ],
         );
-      },
-    );
   }
 
   void _navigateToCalculator(BuildContext context, String type) {

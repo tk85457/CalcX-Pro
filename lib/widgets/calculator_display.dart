@@ -15,19 +15,14 @@ class _CalculatorDisplayState extends State<CalculatorDisplay>
   // Result slide animation
   late AnimationController _slideController;
   late Animation<double> _slideAnimation;
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
 
   // Error shake animation
   late AnimationController _shakeController;
   late Animation<double> _shakeAnimation;
 
-  // Glow animation for result
-  late AnimationController _glowController;
-  late Animation<double> _glowAnimation;
-
   bool _isAnimating = false;
   String _animatingText = '';
+  String _animatingPrevExpression = '';
   String _lastAnimatedResult = '';
   bool _isShaking = false;
   late TextEditingController _controller;
@@ -38,12 +33,11 @@ class _CalculatorDisplayState extends State<CalculatorDisplay>
   void initState() {
     super.initState();
 
-    // Slide animation controller
+    // Slide animation controller (Google & Samsung Calculator style)
     _slideController = AnimationController(
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 350),
       vsync: this,
     );
-
 
     _controller = TextEditingController();
     _controller.addListener(() {
@@ -61,28 +55,10 @@ class _CalculatorDisplayState extends State<CalculatorDisplay>
       }
     });
 
-
-
     _scrollController = ScrollController();
 
     _slideAnimation = Tween<double>(
       begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _slideController,
-      curve: Curves.easeOutCubic,
-    ));
-
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _slideController,
-      curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
-    ));
-
-    _scaleAnimation = Tween<double>(
-      begin: 0.9,
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _slideController,
@@ -94,6 +70,7 @@ class _CalculatorDisplayState extends State<CalculatorDisplay>
         setState(() {
           _isAnimating = false;
           _animatingText = '';
+          _animatingPrevExpression = '';
         });
       }
     });
@@ -121,41 +98,26 @@ class _CalculatorDisplayState extends State<CalculatorDisplay>
         setState(() => _isShaking = false);
       }
     });
-
-    // Glow animation controller
-    _glowController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    _glowAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _glowController,
-      curve: Curves.easeInOut,
-    ));
   }
 
   @override
   void dispose() {
     _slideController.dispose();
     _shakeController.dispose();
-    _glowController.dispose();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  void _triggerAnimation(String resultText) {
+  void _triggerAnimation(String resultText, String prevExpr) {
     if (_lastAnimatedResult != resultText) {
       _lastAnimatedResult = resultText;
       setState(() {
         _isAnimating = true;
         _animatingText = resultText;
+        _animatingPrevExpression = prevExpr;
       });
       _slideController.forward(from: 0.0);
-      _glowController.forward(from: 0.0);
     }
   }
 
@@ -182,15 +144,17 @@ class _CalculatorDisplayState extends State<CalculatorDisplay>
           });
         }
 
-        // Trigger animation only in BASIC mode when result is shown
-        if (calculator.calculatorType == 'basic' &&
+        // Trigger animation in basic, scientific, and advanced mode when result is shown
+        if ((calculator.calculatorType == 'basic' ||
+                calculator.calculatorType == 'scientific' ||
+                calculator.calculatorType == 'advanced') &&
             calculator.isResult &&
             !_isAnimating &&
             calculator.display.isNotEmpty &&
             calculator.display != 'Error' &&
             _lastAnimatedResult != calculator.display) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            _triggerAnimation(calculator.display);
+            _triggerAnimation(calculator.display, calculator.previousExpression);
           });
         }
 
@@ -250,12 +214,27 @@ class _CalculatorDisplayState extends State<CalculatorDisplay>
     double screenHeight,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
+    final startScale = (answerFontSize / displayFontSize).clamp(0.35, 0.65);
 
     return AnimatedBuilder(
-      animation: Listenable.merge([_slideAnimation, _glowAnimation]),
+      animation: _slideAnimation,
       builder: (context, child) {
-        const answerPanelHeight = 32.0;
-        final offset = answerPanelHeight * (1 - _slideAnimation.value);
+        final t = _slideAnimation.value;
+        // Result translateY slides up from bottom preview position (+42 -> 0)
+        final resultOffsetY = 42.0 * (1.0 - t);
+        // Result scale expands smoothly from preview size to display size
+        final resultScale = startScale + (1.0 - startScale) * t;
+        // Result color transitions from preview primary to main onSurface
+        final resultColor = Color.lerp(
+          colorScheme.primary,
+          colorScheme.onSurface,
+          t,
+        )!;
+
+        // Previous expression transitions smoothly from main display size to previous-expression size
+        final prevFontSize =
+            displayFontSize + (answerFontSize * 0.85 - displayFontSize) * t;
+        final prevOpacity = 1.0 - (0.4 * t);
 
         return Column(
           mainAxisAlignment: MainAxisAlignment.end,
@@ -264,72 +243,55 @@ class _CalculatorDisplayState extends State<CalculatorDisplay>
             // Error message display
             if (calculator.errorMessage.isNotEmpty)
               _buildErrorBadge(context, calculator.errorMessage),
-            // Animating result
-            Expanded(
-              child: Transform.translate(
-                offset: Offset(0, offset),
-                child: Transform.scale(
-                  scale: _scaleAnimation.value,
-                  alignment: Alignment.centerRight,
-                  child: Opacity(
-                    opacity: _fadeAnimation.value,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      reverse: true,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          boxShadow: [
-                            BoxShadow(
-                              color: colorScheme.primary.withValues(
-                                alpha: 0.3 * _glowAnimation.value,
-                              ),
-                              blurRadius: 20 * _glowAnimation.value,
-                              spreadRadius: 5 * _glowAnimation.value,
-                            ),
-                          ],
-                        ),
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            _animatingText,
-                            style: TextStyle(
-                              fontSize: displayFontSize,
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.onSurface,
-                              height: 1.1,
-                            ),
-                            textAlign: TextAlign.right,
-                            maxLines: 1,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Fading answer panel
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: colorScheme.surface.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Opacity(
-                opacity: (1 - _slideAnimation.value).clamp(0.0, 1.0),
+
+            // Previous expression transitioning to upper subtle line
+            if (_animatingPrevExpression.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6, right: 4),
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   reverse: true,
                   child: Text(
-                    _animatingText,
+                    _animatingPrevExpression,
                     style: TextStyle(
-                      fontSize: answerFontSize,
-                      color: colorScheme.onSurface.withValues(alpha: 0.8),
-                      fontWeight: FontWeight.w500,
+                      fontSize: prevFontSize,
+                      color:
+                          colorScheme.onSurface.withValues(alpha: prevOpacity),
+                      fontWeight: FontWeight.w400,
                     ),
                     textAlign: TextAlign.right,
+                  ),
+                ),
+              ),
+
+            // Animating result sliding up from auto-calculation preview
+            Expanded(
+              child: Container(
+                alignment: Alignment.bottomRight,
+                child: Transform.translate(
+                  offset: Offset(0, resultOffsetY),
+                  child: Transform.scale(
+                    scale: resultScale,
+                    alignment: Alignment.bottomRight,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      reverse: true,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          _animatingText,
+                          style: TextStyle(
+                            fontSize: displayFontSize,
+                            fontWeight: FontWeight.bold,
+                            color: resultColor,
+                            height: 1.1,
+                          ),
+                          textAlign: TextAlign.right,
+                          maxLines: 1,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -362,7 +324,26 @@ class _CalculatorDisplayState extends State<CalculatorDisplay>
               // Error message display
               if (calculator.errorMessage.isNotEmpty)
                 _buildErrorBadge(context, calculator.errorMessage),
-              // Main display
+
+              // Previous expression display (Samsung / Google Calculator style)
+              if (calculator.isResult && calculator.previousExpression.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6, right: 4),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    reverse: true,
+                    child: Text(
+                      calculator.previousExpression,
+                      style: TextStyle(
+                        fontSize: answerFontSize * 0.85,
+                        color: colorScheme.onSurface.withValues(alpha: 0.6),
+                        fontWeight: FontWeight.w400,
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                ),
+
               // Main display
               Expanded(
                 child: Container(
@@ -377,7 +358,6 @@ class _CalculatorDisplayState extends State<CalculatorDisplay>
                           : calculator.expression;
 
                       // Use sync guard to prevent listener from firing back to provider
-                      // Use post-frame callback to avoid setState during build
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         _isSyncing = true;
                         try {
@@ -391,8 +371,7 @@ class _CalculatorDisplayState extends State<CalculatorDisplay>
                             _controller.selection = TextSelection.collapsed(offset: cursorPos);
                           }
 
-                          // Auto-scroll ONLY if cursor is at the very end (implying new input appended)
-                          // If cursor is in middle (user moved it), DO NOT scroll.
+                          // Auto-scroll ONLY if cursor is at the very end
                           if (cursorPos == text.length && _scrollController.hasClients) {
                              _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
                           }
@@ -405,7 +384,7 @@ class _CalculatorDisplayState extends State<CalculatorDisplay>
                         controller: _controller,
                         scrollController: _scrollController,
                         readOnly: true,
-                        showCursor: true,
+                        showCursor: !calculator.isResult,
                         // Prevent system keyboard from showing
                         keyboardType: TextInputType.none,
                         // Ensure focus is kept for cursor visibility
@@ -424,60 +403,45 @@ class _CalculatorDisplayState extends State<CalculatorDisplay>
                           contentPadding: EdgeInsets.zero,
                           isDense: true,
                         ),
-                        // Disable standard magnifying glass/selection handles if preferred
-                        // or customize interaction
-                        enableInteractiveSelection: true, // Prevents copy/paste menu but keeps cursor?
-                        // Actually, we want cursor movement. enableInteractiveSelection: true is needed for handles.
-                        // But user only asked for cursor "kahi pe chal jaaye".
-                        // Tap movement is enough.
+                        enableInteractiveSelection: true,
                         onTap: () {
                           // Allow cursor positioning
-                          // We need to listen to selection changes
                         },
                       );
                     }
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              // Answer Panel
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                decoration: BoxDecoration(
-                  color: answerPanelText.isNotEmpty
-                      ? colorScheme.primary.withValues(alpha: 0.08)
-                      : colorScheme.surface.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: answerPanelText.isNotEmpty
-                      ? Border.all(
-                          color: colorScheme.primary.withValues(alpha: 0.2),
-                          width: 1,
-                        )
-                      : null,
-                ),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  reverse: true,
-                  child: AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 150),
-                    style: TextStyle(
-                      fontSize: answerFontSize,
-                      color: answerPanelText.isNotEmpty
-                          ? colorScheme.primary
-                          : colorScheme.onSurface.withValues(alpha: 0.7),
-                      fontWeight: answerPanelText.isNotEmpty
-                          ? FontWeight.w600
-                          : FontWeight.w500,
-                      height: 1.2,
+
+              // Answer Panel (only shown when live auto-calculation preview is available)
+              if (answerPanelText.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: colorScheme.primary.withValues(alpha: 0.2),
+                      width: 1,
                     ),
+                  ),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    reverse: true,
                     child: Text(
                       answerPanelText,
+                      style: TextStyle(
+                        fontSize: answerFontSize,
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                        height: 1.2,
+                      ),
                       textAlign: TextAlign.right,
                     ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         );

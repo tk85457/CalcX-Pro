@@ -1,4 +1,3 @@
-﻿import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -47,13 +46,7 @@ Future<void> _initSystemUI() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ),
-  );
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 }
 
 class CalculatorProApp extends StatefulWidget {
@@ -80,11 +73,27 @@ class _CalculatorProAppState extends State<CalculatorProApp> {
   Widget build(BuildContext context) {
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, child) {
+        final isDark = themeProvider.isDark;
+        final overlayStyle = SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+          systemNavigationBarColor: Colors.transparent,
+          systemNavigationBarIconBrightness:
+              isDark ? Brightness.light : Brightness.dark,
+        );
+
         return MaterialApp(
           title: AppConstants.appName,
           debugShowCheckedModeBanner: false,
           theme: themeProvider.theme,
-          themeMode: themeProvider.isDark ? ThemeMode.dark : ThemeMode.light,
+          themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+          builder: (context, navigatorChild) {
+            return AnnotatedRegion<SystemUiOverlayStyle>(
+              value: overlayStyle,
+              child: navigatorChild ?? const SizedBox.shrink(),
+            );
+          },
           home: const SplashScreen(),
         );
       },
@@ -98,168 +107,226 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
-  late AnimationController _mainController;
-  late AnimationController _glowController;
-  late AnimationController _textController;
-  late AnimationController _particleController;
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
   late Animation<double> _textSlideAnimation;
   late Animation<double> _textFadeAnimation;
-  late Animation<double> _glowAnimation;
-  late List<_SplashParticle> _particles;
-  final Random _random = Random();
+  late Animation<double> _progressAnimation;
 
   @override
   void initState() {
     super.initState();
-    _particles = List.generate(12, (_) => _SplashParticle(
-      x: _random.nextDouble(), y: _random.nextDouble(),
-      size: _random.nextDouble() * 3 + 1.5,
-      speedY: _random.nextDouble() * 0.2 + 0.08,
-      opacity: _random.nextDouble() * 0.4 + 0.2,
-    ));
-    _mainController = AnimationController(duration: const Duration(milliseconds: 900), vsync: this);
-    _glowController = AnimationController(duration: const Duration(milliseconds: 1000), vsync: this)..repeat(reverse: true);
-    _textController = AnimationController(duration: const Duration(milliseconds: 600), vsync: this);
-    _particleController = AnimationController(duration: const Duration(seconds: 3), vsync: this)..repeat();
-    _scaleAnimation = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 1.12).chain(CurveTween(curve: Curves.easeOutCubic)), weight: 65),
-      TweenSequenceItem(tween: Tween<double>(begin: 1.12, end: 1.0).chain(CurveTween(curve: Curves.easeInOut)), weight: 35),
-    ]).animate(_mainController);
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _mainController, curve: const Interval(0.0, 0.4, curve: Curves.easeOut)));
-    _glowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_glowController);
-    _textSlideAnimation = Tween<double>(begin: 24.0, end: 0.0).animate(CurvedAnimation(parent: _textController, curve: Curves.easeOutCubic));
-    _textFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _textController, curve: Curves.easeOut));
-    _startSequence();
-  }
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1300),
+      vsync: this,
+    );
 
-  void _startSequence() async {
-    await Future.delayed(const Duration(milliseconds: 120));
-    if (!mounted) return;
-    _mainController.forward();
-    await Future.delayed(const Duration(milliseconds: 550));
-    if (!mounted) return;
-    _textController.forward();
-    await Future.delayed(const Duration(milliseconds: 750));
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(PageRouteBuilder(
-      pageBuilder: (_, __, ___) => const HomeScreen(),
-      transitionsBuilder: (_, a, __, child) => FadeTransition(
-        opacity: a,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.97, end: 1.0).animate(CurvedAnimation(parent: a, curve: Curves.easeOut)),
-          child: child,
-        ),
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.45, curve: Curves.easeOutBack),
       ),
-      transitionDuration: const Duration(milliseconds: 320),
-    ));
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.35, curve: Curves.easeOut),
+      ),
+    );
+
+    _textSlideAnimation = Tween<double>(begin: 20.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.25, 0.65, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    _textFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.25, 0.60, curve: Curves.easeOut),
+      ),
+    );
+
+    _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.35, 0.90, curve: Curves.easeInOutCubic),
+      ),
+    );
+
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => const HomeScreen(),
+            transitionsBuilder: (_, a, __, child) => FadeTransition(
+              opacity: a,
+              child: child,
+            ),
+            transitionDuration: const Duration(milliseconds: 280),
+          ),
+        );
+      }
+    });
+
+    _controller.forward();
   }
 
   @override
   void dispose() {
-    _mainController.dispose(); _glowController.dispose();
-    _textController.dispose(); _particleController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final iconPixelSize =
+        (120 * MediaQuery.devicePixelRatioOf(context)).round();
     return Scaffold(
       body: AnimatedBuilder(
-        animation: Listenable.merge([_mainController, _glowController, _textController, _particleController]),
+        animation: _controller,
         builder: (context, _) {
           return Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-                colors: [cs.primary, Color.lerp(cs.primary, cs.secondary, 0.6)!, cs.secondary],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  cs.primary,
+                  Color.lerp(cs.primary, cs.secondary, 0.6)!,
+                  cs.secondary,
+                ],
               ),
             ),
-            child: Stack(children: [
-              RepaintBoundary(child: CustomPaint(
-                painter: _SplashParticlesPainter(particles: _particles, animationValue: _particleController.value),
-                size: Size.infinite,
-              )),
-              Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Transform.scale(scale: _scaleAnimation.value, child: Opacity(opacity: _fadeAnimation.value,
-                  child: Container(
-                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(28), boxShadow: [
-                      BoxShadow(color: Colors.white.withValues(alpha: 0.2 + _glowAnimation.value * 0.15),
-                        blurRadius: 18 + _glowAnimation.value * 12, spreadRadius: 4 + _glowAnimation.value * 4),
-                    ]),
-                    child: Container(width: 130, height: 130,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.5),
+            child: Stack(
+              children: [
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Transform.scale(
+                        scale: _scaleAnimation.value,
+                        child: Opacity(
+                          opacity: _fadeAnimation.value,
+                          child: Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.35),
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.15),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(26),
+                              child: Image.asset(
+                                'assets/images/icon/app_icon.png',
+                                fit: BoxFit.cover,
+                                cacheWidth: iconPixelSize,
+                                cacheHeight: iconPixelSize,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.calculate_rounded,
+                                  size: 72,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                      child: ClipRRect(borderRadius: BorderRadius.circular(26),
-                        child: Image.asset('assets/images/icon/app_icon.png', fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(Icons.calculate_rounded, size: 80, color: Colors.white)),
+                      const SizedBox(height: 32),
+                      Transform.translate(
+                        offset: Offset(0, _textSlideAnimation.value),
+                        child: Opacity(
+                          opacity: _textFadeAnimation.value,
+                          child: const Text(
+                            AppConstants.appName,
+                            style: TextStyle(
+                              fontSize: 34,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Transform.translate(
+                        offset: Offset(0, _textSlideAnimation.value * 1.2),
+                        child: Opacity(
+                          opacity: _textFadeAnimation.value * 0.85,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: const Text(
+                              '✨ Premium Calculator Experience',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  bottom: 56,
+                  left: 0,
+                  right: 0,
+                  child: Opacity(
+                    opacity: _textFadeAnimation.value,
+                    child: Center(
+                      child: SizedBox(
+                        width: 100,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: _progressAnimation.value,
+                            backgroundColor:
+                                Colors.white.withValues(alpha: 0.2),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                            minHeight: 3,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                )),
-                const SizedBox(height: 36),
-                Transform.translate(offset: Offset(0, _textSlideAnimation.value), child: Opacity(opacity: _textFadeAnimation.value,
-                  child: const Text(AppConstants.appName, style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.5)),
-                )),
-                const SizedBox(height: 10),
-                Transform.translate(offset: Offset(0, _textSlideAnimation.value * 1.3), child: Opacity(opacity: _textFadeAnimation.value * 0.85,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-                    ),
-                    child: const Text('\u2728 Premium Calculator Experience',
-                      style: TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500)),
-                  ),
-                )),
-              ])),
-              Positioned(bottom: 56, left: 0, right: 0, child: Opacity(opacity: _textFadeAnimation.value,
-                child: Center(child: SizedBox(width: 100, child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: _mainController.value,
-                    backgroundColor: Colors.white.withValues(alpha: 0.2),
-                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                    minHeight: 3,
-                  ),
-                ))),
-              )),
-            ]),
+                ),
+              ],
+            ),
           );
         },
       ),
     );
   }
-}
-
-class _SplashParticle {
-  final double x, y, size, speedY, opacity;
-  const _SplashParticle({required this.x, required this.y, required this.size, required this.speedY, required this.opacity});
-}
-
-class _SplashParticlesPainter extends CustomPainter {
-  final List<_SplashParticle> particles;
-  final double animationValue;
-  const _SplashParticlesPainter({required this.particles, required this.animationValue});
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..style = PaintingStyle.fill;
-    for (final p in particles) {
-      final y = ((p.y + animationValue * p.speedY) % 1.0) * size.height;
-      final x = (p.x + sin(animationValue * pi * 2 + p.y * 8) * 0.015) * size.width;
-      final pulse = p.opacity * (0.6 + 0.4 * sin(animationValue * pi * 3 + p.x * 8));
-      paint.color = Colors.white.withValues(alpha: pulse);
-      canvas.drawCircle(Offset(x, y), p.size, paint);
-    }
-  }
-  @override
-  bool shouldRepaint(covariant _SplashParticlesPainter old) => old.animationValue != animationValue;
 }
 

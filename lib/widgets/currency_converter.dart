@@ -161,6 +161,11 @@ class _CurrencyConverterWidgetState extends State<CurrencyConverterWidget> {
       final fromRate = _exchangeRates[_fromCurrency] ?? 1.0;
       final toRate = _exchangeRates[_toCurrency] ?? 1.0;
 
+      if (fromRate <= 0) {
+        setState(() => _result = 'Invalid rate');
+        return;
+      }
+
       // Convert: (value / fromRate) * toRate
       // Since rates are relative to USD, we first convert to USD then to target
       final result = (value / fromRate) * toRate;
